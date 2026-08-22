@@ -15,6 +15,7 @@ interface SendAck {
 interface SendPayload {
   text?: string;
   mediaUrl?: string;
+  postId?: string;
 }
 
 /** Emits over the socket and resolves with the server's ack — matches the

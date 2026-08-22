@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import { MessageInput } from "@/components/messages/MessageInput";
@@ -131,6 +131,18 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                     : "bg-muted text-foreground",
                 )}
               >
+                {message.sharedPostId && (
+                  <Link
+                    href={`/p/${message.sharedPostId}`}
+                    className={cn(
+                      "mb-1 flex items-center gap-1.5 text-xs underline underline-offset-2",
+                      isMine ? "text-primary-foreground/90" : "text-foreground",
+                    )}
+                  >
+                    <ImageIcon className="size-3.5" />
+                    Shared a post
+                  </Link>
+                )}
                 {message.mediaUrl && (
                   <audio
                     src={message.mediaUrl}
