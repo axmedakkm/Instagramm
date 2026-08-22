@@ -4,8 +4,8 @@ import { useMutation } from "@tanstack/react-query";
 import { Loader2, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
+import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -26,6 +26,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
   const [openList, setOpenList] = useState<"followers" | "following" | null>(
     null,
   );
+  const [editOpen, setEditOpen] = useState(false);
 
   const startConversation = useMutation({
     mutationFn: () => conversationsApi.getOrCreateWithUser(profile.id),
@@ -47,7 +48,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => toast.info("Profile editing is coming soon.")}
+                onClick={() => setEditOpen(true)}
               >
                 Edit profile
               </Button>
@@ -120,6 +121,14 @@ export function ProfileHeader({ profile }: { profile: User }) {
           open
           onOpenChange={(open) => setOpenList(open ? openList : null)}
           viewerFollowsAll={isOwner && openList === "following"}
+        />
+      )}
+
+      {isOwner && (
+        <EditProfileModal
+          user={profile}
+          open={editOpen}
+          onOpenChange={setEditOpen}
         />
       )}
     </header>
