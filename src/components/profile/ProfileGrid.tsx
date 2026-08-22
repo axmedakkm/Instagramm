@@ -9,13 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { postsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 
-export function ProfileGrid({
-  userId,
-  mode = "posts",
-}: {
-  userId: string;
-  mode?: "posts" | "saved";
-}) {
+export function ProfileGrid({ userId }: { userId: string }) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -25,13 +19,14 @@ export function ProfileGrid({
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: mode === "posts" ? queryKeys.posts.byUser(userId) : queryKeys.posts.saved,
-    queryFn: ({ pageParam }: { pageParam?: string }) =>
-      mode === "posts"
-        ? postsApi.byUser(userId, pageParam)
-        : postsApi.saved(pageParam),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    queryKey: queryKeys.posts.byUser(userId),
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      postsApi.byUser(userId, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.page < lastPage.pagination.totalPages
+        ? lastPage.pagination.page + 1
+        : undefined,
   });
 
   useEffect(() => {
@@ -64,7 +59,7 @@ export function ProfileGrid({
   if (posts.length === 0) {
     return (
       <p className="py-16 text-center text-sm text-muted-foreground">
-        {mode === "posts" ? "No posts yet." : "No saved posts yet."}
+        No posts yet.
       </p>
     );
   }
@@ -79,13 +74,13 @@ export function ProfileGrid({
             className="group relative aspect-square overflow-hidden bg-muted"
           >
             <Image
-              src={post.media[0]?.url ?? ""}
-              alt={post.caption ?? "Post"}
+              src={post.mediaUrls[0] ?? ""}
+              alt={post.caption || "Post"}
               fill
               sizes="(max-width: 768px) 33vw, 300px"
               className="object-cover"
             />
-            {post.media.length > 1 && (
+            {post.mediaUrls.length > 1 && (
               <Layers className="absolute right-2 top-2 size-4 text-white drop-shadow" />
             )}
             <div className="absolute inset-0 hidden items-center justify-center gap-6 bg-black/40 text-white group-hover:flex">
