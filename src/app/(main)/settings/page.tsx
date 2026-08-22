@@ -1,6 +1,13 @@
 "use client";
 
-import { ChevronLeft, LogOut, User as UserIcon } from "lucide-react";
+import {
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  Moon,
+  User as UserIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -50,6 +57,26 @@ export default function SettingsPage() {
         >
           <UserIcon className="size-5" />
           Edit profile
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/saved")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Bookmark className="size-5" />
+          Saved
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/settings/theme")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Moon className="size-5" />
+          Theme
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
         <Separator className="my-1" />

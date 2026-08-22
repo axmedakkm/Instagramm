@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   DropdownMenuContent,
@@ -41,12 +41,6 @@ export function AccountMenuContent() {
     router.push("/login");
   };
 
-  const signOut = () => {
-    logout();
-    queryClient.clear();
-    router.push("/login");
-  };
-
   return (
     <DropdownMenuContent align="end" className="w-64">
       {otherAccounts.length > 0 && (
@@ -65,16 +59,14 @@ export function AccountMenuContent() {
         </>
       )}
 
+      <DropdownMenuItem onClick={() => router.push("/settings")}>
+        <Settings className="size-4" />
+        Settings
+      </DropdownMenuItem>
+
       <DropdownMenuItem onClick={addAccount}>
         <Plus className="size-4" />
         Add account
-      </DropdownMenuItem>
-
-      <DropdownMenuSeparator />
-
-      <DropdownMenuItem variant="destructive" onClick={signOut}>
-        <LogOut className="size-4" />
-        Log out {currentUser ? `@${currentUser.username}` : ""}
       </DropdownMenuItem>
     </DropdownMenuContent>
   );

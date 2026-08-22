@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, LogOut, Menu, Settings } from "lucide-react";
+import { Loader2, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -13,9 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { conversationsApi } from "@/services/api";
@@ -25,7 +22,6 @@ import type { User } from "@/types";
 export function ProfileHeader({ profile }: { profile: User }) {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
   const isOwner = currentUser?.id === profile.id;
   const [openList, setOpenList] = useState<"followers" | "following" | null>(
     null,
@@ -66,23 +62,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
                     <Menu className="size-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => router.push("/settings")}>
-                    <Settings className="size-4" />
-                    Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => {
-                      logout();
-                      router.push("/login");
-                    }}
-                  >
-                    <LogOut className="size-4" />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                <AccountMenuContent />
               </DropdownMenu>
             </div>
           ) : (
