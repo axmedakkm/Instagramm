@@ -26,11 +26,10 @@ export const queryKeys = {
   stories: {
     feed: ["stories", "feed"] as const,
     byUser: (userId: string) => ["stories", "user", userId] as const,
+    viewers: (storyId: string) => ["stories", "viewers", storyId] as const,
   },
   conversations: {
     list: ["conversations"] as const,
-    detail: (conversationId: string) =>
-      ["conversations", conversationId] as const,
     messages: (conversationId: string) =>
       ["conversations", conversationId, "messages"] as const,
   },

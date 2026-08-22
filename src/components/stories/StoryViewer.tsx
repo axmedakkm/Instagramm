@@ -1,13 +1,14 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StoryReplyBar } from "@/components/stories/StoryReplyBar";
+import { StoryViewersSheet } from "@/components/stories/StoryViewersSheet";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { TimeAgo } from "@/components/shared/TimeAgo";
-import { cn } from "@/lib/utils";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -18,6 +19,7 @@ const STORY_DURATION_MS = 5000;
 export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const { data: storyGroups } = useQuery({
     queryKey: queryKeys.stories.feed,
@@ -46,6 +48,8 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const [manualGroupIndex, setManualGroupIndex] = useState<number | null>(null);
   const [storyIndex, setStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [viewersOpen, setViewersOpen] = useState(false);
 
   const derivedGroupIndex = groups.findIndex(
     (group) => group.user.username === initialUsername,
@@ -55,6 +59,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
 
   const currentGroup = groups[groupIndex];
   const currentStory = currentGroup?.stories[storyIndex];
+  const isOwnStory = !!currentUser && currentGroup?.user.id === currentUser.id;
 
   const close = () => router.push("/feed");
 
@@ -105,8 +110,10 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
       .catch(() => {});
   }, [currentStory, queryClient, currentUser]);
 
+  // Image stories advance on a fixed timer; video stories advance when the
+  // video itself ends (see the <video> element's onEnded/onTimeUpdate below).
   useEffect(() => {
-    if (!currentStory) return;
+    if (!currentStory || currentStory.mediaType === "video" || isPaused) return;
     const intervalMs = 50;
     const step = (intervalMs / STORY_DURATION_MS) * 100;
 
@@ -121,7 +128,15 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
     }, intervalMs);
 
     return () => clearInterval(interval);
-  }, [currentStory, goToNextStory]);
+  }, [currentStory, goToNextStory, isPaused]);
+
+  // Pause video playback while the viewer is composing a reply.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isPaused) video.pause();
+    else video.play().catch(() => {});
+  }, [isPaused, currentStory]);
 
   if (!currentGroup || !currentStory) {
     return (
@@ -176,27 +191,68 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
           </button>
         </div>
 
-        <Image
-          src={currentStory.mediaUrl}
-          alt={`${currentGroup.user.username}'s story`}
-          fill
-          className="object-contain"
-          priority
-        />
+        {currentStory.mediaType === "video" ? (
+          <video
+            key={currentStory.id}
+            ref={videoRef}
+            src={currentStory.mediaUrl}
+            autoPlay
+            playsInline
+            className="size-full object-contain"
+            onTimeUpdate={(event) => {
+              const video = event.currentTarget;
+              if (video.duration) {
+                setProgress((video.currentTime / video.duration) * 100);
+              }
+            }}
+            onEnded={goToNextStory}
+          />
+        ) : (
+          <Image
+            src={currentStory.mediaUrl}
+            alt={`${currentGroup.user.username}'s story`}
+            fill
+            className="object-contain"
+            priority
+          />
+        )}
 
         <button
           type="button"
           aria-label="Previous story"
           onClick={goToPreviousStory}
-          className={cn("absolute inset-y-0 left-0 z-10 w-1/3")}
+          className="absolute inset-y-0 left-0 bottom-20 z-10 w-1/3"
         />
         <button
           type="button"
           aria-label="Next story"
           onClick={goToNextStory}
-          className={cn("absolute inset-y-0 right-0 z-10 w-1/3")}
+          className="absolute inset-y-0 right-0 bottom-20 z-10 w-1/3"
         />
+
+        <div className="absolute inset-x-3 bottom-4 z-20">
+          {isOwnStory ? (
+            <button
+              type="button"
+              onClick={() => setViewersOpen(true)}
+              className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-sm text-white backdrop-blur"
+            >
+              <Eye className="size-4" />
+              Seen by {currentStory.viewsCount}
+            </button>
+          ) : (
+            <StoryReplyBar story={currentStory} onActivityChange={setIsPaused} />
+          )}
+        </div>
       </div>
+
+      {isOwnStory && (
+        <StoryViewersSheet
+          story={currentStory}
+          open={viewersOpen}
+          onOpenChange={setViewersOpen}
+        />
+      )}
     </div>
   );
 }
