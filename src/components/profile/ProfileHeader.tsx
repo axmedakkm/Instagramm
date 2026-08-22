@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, MoreHorizontal } from "lucide-react";
+import { Loader2, LogOut, Menu, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -11,7 +11,13 @@ import { FollowButton } from "@/components/shared/FollowButton";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { conversationsApi } from "@/services/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { User } from "@/types";
@@ -19,6 +25,7 @@ import type { User } from "@/types";
 export function ProfileHeader({ profile }: { profile: User }) {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
   const isOwner = currentUser?.id === profile.id;
   const [openList, setOpenList] = useState<"followers" | "following" | null>(
     null,
@@ -40,7 +47,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
           {profile.isPrivate && <Badge variant="outline">Private</Badge>}
 
           {isOwner ? (
-            <>
+            <div className="flex items-center gap-2">
               <Button
                 variant="secondary"
                 size="sm"
@@ -50,13 +57,34 @@ export function ProfileHeader({ profile }: { profile: User }) {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Account options">
-                    <MoreHorizontal className="size-5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Open menu"
+                    className="size-8"
+                  >
+                    <Menu className="size-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <AccountMenuContent />
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => router.push("/settings")}>
+                    <Settings className="size-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => {
+                      logout();
+                      router.push("/login");
+                    }}
+                  >
+                    <LogOut className="size-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
               </DropdownMenu>
-            </>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <FollowButton user={profile} />
