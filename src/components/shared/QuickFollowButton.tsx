@@ -37,7 +37,7 @@ export function QuickFollowButton({
         mutation.mutate();
       }}
     >
-      {justFollowed ? "Requested" : "Follow"}
+      {justFollowed ? "Following" : "Follow"}
     </Button>
   );
 }
