@@ -2,6 +2,7 @@ import Cookies from "js-cookie";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/constants";
+import { useAccountsStore } from "@/store/useAccountsStore";
 import type { User } from "@/types";
 
 /**
@@ -43,7 +44,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       refreshToken: null,
@@ -57,10 +58,21 @@ export const useAuthStore = create<AuthState>()(
           refreshToken,
           isAuthenticated: true,
         });
+        // Remembers this account for the account switcher (see
+        // useAccountsStore) so it can be switched back to without
+        // re-entering credentials.
+        useAccountsStore.getState().remember({ user, accessToken, refreshToken });
       },
       setTokens: ({ accessToken, refreshToken }) => {
         syncTokenCookies(accessToken, refreshToken);
         set({ accessToken, refreshToken });
+        // This backend rotates refresh tokens (single-use) — keep the
+        // remembered copy current so switching away and back later still
+        // works instead of using an already-consumed token.
+        const { user } = get();
+        if (user) {
+          useAccountsStore.getState().remember({ user, accessToken, refreshToken });
+        }
       },
       setUser: (user) => set({ user }),
       logout: () => {

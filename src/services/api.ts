@@ -262,7 +262,7 @@ export const conversationsApi = {
 
   sendMessage: (
     conversationId: string,
-    payload: { text?: string; mediaUrl?: string },
+    payload: { text?: string; mediaUrl?: string; postId?: string },
   ) =>
     api
       .post<Message>(`/conversations/${conversationId}/messages`, payload)

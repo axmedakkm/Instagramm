@@ -7,13 +7,16 @@ import {
   Heart,
   Home,
   Camera,
+  Menu,
   MessageCircle,
   PlusSquare,
   Search,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { notificationsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
@@ -106,6 +109,21 @@ export function Sidebar() {
             <UserAvatar user={user} size="xs" />
             <span className="hidden xl:inline">Profile</span>
           </Link>
+        )}
+
+        {user && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="mt-auto flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-colors hover:bg-accent"
+              >
+                <Menu className="size-6 shrink-0" />
+                <span className="hidden xl:inline">More</span>
+              </button>
+            </DropdownMenuTrigger>
+            <AccountMenuContent />
+          </DropdownMenu>
         )}
       </nav>
     </aside>

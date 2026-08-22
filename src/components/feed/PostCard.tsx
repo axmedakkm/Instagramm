@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CommentInput } from "@/components/feed/CommentInput";
+import { SharePostModal } from "@/components/feed/SharePostModal";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,7 @@ export function PostCard({ post }: { post: Post }) {
   const currentUser = useAuthStore((state) => state.user);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [showCommentBox, setShowCommentBox] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const isOwner = currentUser?.id === post.author.id;
 
@@ -255,9 +257,13 @@ export function PostCard({ post }: { post: Post }) {
           >
             <MessageCircle className="size-6" />
           </button>
-          <Link href={`/p/${post.id}`} aria-label="Share">
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            aria-label="Send in a message"
+          >
             <Send className="size-6" />
-          </Link>
+          </button>
         </div>
         <button
           type="button"
@@ -314,6 +320,12 @@ export function PostCard({ post }: { post: Post }) {
           />
         </div>
       )}
+
+      <SharePostModal
+        postId={post.id}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
     </article>
   );
 }

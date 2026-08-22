@@ -9,6 +9,7 @@ import { use, useState } from "react";
 import { toast } from "sonner";
 import { CommentInput } from "@/components/feed/CommentInput";
 import { CommentList } from "@/components/feed/CommentList";
+import { SharePostModal } from "@/components/feed/SharePostModal";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export default function PostDetailPage({
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const { data: post, isLoading } = useQuery({
     queryKey: queryKeys.posts.detail(postId),
@@ -189,7 +191,13 @@ export default function PostDetailPage({
                   )}
                 />
               </button>
-              <Send className="size-6" />
+              <button
+                type="button"
+                onClick={() => setShareOpen(true)}
+                aria-label="Send in a message"
+              >
+                <Send className="size-6" />
+              </button>
             </div>
             <button type="button" onClick={() => saveMutation.mutate()}>
               <Bookmark
@@ -211,6 +219,12 @@ export default function PostDetailPage({
 
         <CommentInput postId={post.id} />
       </div>
+
+      <SharePostModal
+        postId={post.id}
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+      />
     </div>
   );
 }

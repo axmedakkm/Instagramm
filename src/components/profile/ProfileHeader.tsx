@@ -5,6 +5,7 @@ import { Loader2, LogOut, Menu, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
 import { UserAvatar } from "@/components/shared/UserAvatar";
