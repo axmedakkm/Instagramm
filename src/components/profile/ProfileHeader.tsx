@@ -1,15 +1,17 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { conversationsApi } from "@/services/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { User } from "@/types";
@@ -38,13 +40,23 @@ export function ProfileHeader({ profile }: { profile: User }) {
           {profile.isPrivate && <Badge variant="outline">Private</Badge>}
 
           {isOwner ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => toast.info("Profile editing is coming soon.")}
-            >
-              Edit profile
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => toast.info("Profile editing is coming soon.")}
+              >
+                Edit profile
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Account options">
+                    <MoreHorizontal className="size-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <AccountMenuContent />
+              </DropdownMenu>
+            </>
           ) : (
             <div className="flex items-center gap-2">
               <FollowButton user={profile} />
