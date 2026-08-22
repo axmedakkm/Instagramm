@@ -97,18 +97,28 @@ export default function PostDetailPage({
   return (
     <div className="mx-auto flex h-screen w-full max-w-5xl flex-col lg:flex-row lg:items-stretch">
       <div className="relative aspect-square w-full shrink-0 bg-black lg:aspect-auto lg:flex-1">
-        <Image
-          src={post.media[mediaIndex]?.url ?? ""}
-          alt={post.caption ?? "Post"}
-          fill
-          className="object-contain"
-          priority
-        />
-        {post.media.length > 1 && (
+        {post.mediaType === "video" ? (
+          <video
+            src={post.mediaUrls[0]}
+            controls
+            autoPlay
+            loop
+            className="size-full object-contain"
+          />
+        ) : (
+          <Image
+            src={post.mediaUrls[mediaIndex] ?? ""}
+            alt={post.caption || "Post"}
+            fill
+            className="object-contain"
+            priority
+          />
+        )}
+        {post.mediaUrls.length > 1 && (
           <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1">
-            {post.media.map((media, index) => (
+            {post.mediaUrls.map((url, index) => (
               <button
-                key={media.id}
+                key={url}
                 type="button"
                 onClick={() => setMediaIndex(index)}
                 className={cn(

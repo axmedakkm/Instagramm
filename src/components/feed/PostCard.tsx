@@ -36,11 +36,7 @@ function patchPostInCaches(
   postId: string,
   patch: (post: Post) => Post,
 ) {
-  const queryKeysToPatch = [
-    queryKeys.posts.feed,
-    queryKeys.posts.explore,
-    queryKeys.posts.saved,
-  ];
+  const queryKeysToPatch = [queryKeys.posts.feed, queryKeys.posts.explore];
 
   queryKeysToPatch.forEach((key) => {
     queryClient.setQueriesData<{ pages: PaginatedResponse<Post>[] } | PaginatedResponse<Post>>(
@@ -177,22 +173,31 @@ export function PostCard({ post }: { post: Post }) {
         className="relative aspect-square w-full bg-muted"
         onDoubleClick={handleDoubleClickLike}
       >
-        {post.media.map((media, index) => (
-          <Image
-            key={media.id}
-            src={media.url}
-            alt={post.caption ?? `Post by ${post.author.username}`}
-            fill
-            sizes="(max-width: 640px) 100vw, 470px"
-            className={cn(
-              "object-cover transition-opacity",
-              index === mediaIndex ? "opacity-100" : "opacity-0 pointer-events-none absolute",
-            )}
-            priority={index === 0}
+        {post.mediaType === "video" ? (
+          <video
+            src={post.mediaUrls[0]}
+            controls
+            loop
+            className="size-full object-cover"
           />
-        ))}
+        ) : (
+          post.mediaUrls.map((url, index) => (
+            <Image
+              key={url}
+              src={url}
+              alt={post.caption || `Post by ${post.author.username}`}
+              fill
+              sizes="(max-width: 640px) 100vw, 470px"
+              className={cn(
+                "object-cover transition-opacity",
+                index === mediaIndex ? "opacity-100" : "opacity-0 pointer-events-none absolute",
+              )}
+              priority={index === 0}
+            />
+          ))
+        )}
 
-        {post.media.length > 1 && (
+        {post.mediaUrls.length > 1 && (
           <>
             {mediaIndex > 0 && (
               <button
@@ -204,7 +209,7 @@ export function PostCard({ post }: { post: Post }) {
                 &#8592;
               </button>
             )}
-            {mediaIndex < post.media.length - 1 && (
+            {mediaIndex < post.mediaUrls.length - 1 && (
               <button
                 type="button"
                 onClick={() => setMediaIndex((i) => i + 1)}
@@ -215,9 +220,9 @@ export function PostCard({ post }: { post: Post }) {
               </button>
             )}
             <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
-              {post.media.map((media, index) => (
+              {post.mediaUrls.map((url, index) => (
                 <span
-                  key={media.id}
+                  key={url}
                   className={cn(
                     "size-1.5 rounded-full bg-background/70",
                     index === mediaIndex && "bg-primary",

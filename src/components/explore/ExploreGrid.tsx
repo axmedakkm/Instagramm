@@ -20,10 +20,13 @@ export function ExploreGrid() {
     isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: queryKeys.posts.explore,
-    queryFn: ({ pageParam }: { pageParam?: string }) =>
+    queryFn: ({ pageParam }: { pageParam: number }) =>
       postsApi.explore(pageParam),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.page < lastPage.pagination.totalPages
+        ? lastPage.pagination.page + 1
+        : undefined,
   });
 
   useEffect(() => {
@@ -73,13 +76,13 @@ export function ExploreGrid() {
             className="group relative aspect-square overflow-hidden bg-muted"
           >
             <Image
-              src={post.media[0]?.url ?? ""}
-              alt={post.caption ?? "Explore post"}
+              src={post.mediaUrls[0] ?? ""}
+              alt={post.caption || "Explore post"}
               fill
               sizes="(max-width: 768px) 33vw, 300px"
               className="object-cover transition-transform group-hover:scale-105"
             />
-            {post.media.length > 1 && (
+            {post.mediaUrls.length > 1 && (
               <Layers className="absolute right-2 top-2 size-4 text-white drop-shadow" />
             )}
             <div className="absolute inset-0 hidden items-center justify-center gap-6 bg-black/40 text-white group-hover:flex">

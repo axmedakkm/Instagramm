@@ -13,12 +13,14 @@ import { commentsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import type { Comment } from "@/types";
 
+/** Generic like toggle shared by top-level comments and replies — both are
+ * `Comment` records and hit the same `/comments/:id/like` endpoint. */
 function CommentLikeButton({
-  postId,
   comment,
+  queryKey,
 }: {
-  postId: string;
   comment: Comment;
+  queryKey: readonly unknown[];
 }) {
   const queryClient = useQueryClient();
 
@@ -28,14 +30,10 @@ function CommentLikeButton({
         ? commentsApi.unlike(comment.id)
         : commentsApi.like(comment.id),
     onMutate: async () => {
-      await queryClient.cancelQueries({
-        queryKey: queryKeys.comments.list(postId),
-      });
-      const previous = queryClient.getQueryData(
-        queryKeys.comments.list(postId),
-      );
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData(queryKey);
       queryClient.setQueryData(
-        queryKeys.comments.list(postId),
+        queryKey,
         (old: { items: Comment[] } | undefined) =>
           old && {
             ...old,
@@ -56,7 +54,7 @@ function CommentLikeButton({
     },
     onError: (_error, _vars, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(queryKeys.comments.list(postId), context.previous);
+        queryClient.setQueryData(queryKey, context.previous);
       }
     },
   });
@@ -78,19 +76,80 @@ function CommentLikeButton({
   );
 }
 
-function CommentItem({
-  postId,
-  comment,
-  depth = 0,
-}: {
-  postId: string;
-  comment: Comment;
-  depth?: number;
-}) {
+function RepliesSection({ comment }: { comment: Comment }) {
+  const [expanded, setExpanded] = useState(false);
+  const repliesKey = queryKeys.comments.replies(comment.id);
+
+  const { data, isLoading } = useQuery({
+    queryKey: repliesKey,
+    queryFn: () => commentsApi.replies(comment.id),
+    enabled: expanded,
+  });
+
+  if (comment.repliesCount === 0) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        className="text-xs font-semibold text-muted-foreground"
+      >
+        {expanded
+          ? "Hide replies"
+          : `View ${comment.repliesCount} ${comment.repliesCount === 1 ? "reply" : "replies"}`}
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          {isLoading &&
+            Array.from({ length: Math.min(comment.repliesCount, 2) }).map(
+              (_, index) => (
+                <div key={index} className="flex gap-3">
+                  <Skeleton className="size-7 rounded-full" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              ),
+            )}
+          {data?.items.map((reply) => (
+            <div key={reply.id} className="flex gap-3">
+              <Link href={`/${reply.author.username}`}>
+                <UserAvatar user={reply.author} size="sm" />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">
+                  <Link
+                    href={`/${reply.author.username}`}
+                    className="mr-1.5 font-semibold"
+                  >
+                    {reply.author.username}
+                  </Link>
+                  {reply.text}
+                </p>
+                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                  <TimeAgo date={reply.createdAt} />
+                  {reply.likesCount > 0 && (
+                    <span>
+                      {reply.likesCount}{" "}
+                      {reply.likesCount === 1 ? "like" : "likes"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <CommentLikeButton comment={reply} queryKey={repliesKey} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommentItem({ postId, comment }: { postId: string; comment: Comment }) {
   const [isReplying, setIsReplying] = useState(false);
 
   return (
-    <div className={cn("flex gap-3", depth > 0 && "ml-10 mt-3")}>
+    <div className="flex gap-3">
       <Link href={`/${comment.author.username}`}>
         <UserAvatar user={comment.author} size="sm" />
       </Link>
@@ -120,7 +179,7 @@ function CommentItem({
           <div className="mt-1 -ml-4">
             <CommentInput
               postId={postId}
-              parentId={comment.id}
+              parentCommentId={comment.id}
               autoFocus
               placeholder={`Reply to ${comment.author.username}...`}
               onPosted={() => setIsReplying(false)}
@@ -128,16 +187,9 @@ function CommentItem({
           </div>
         )}
 
-        {comment.replies?.map((reply) => (
-          <CommentItem
-            key={reply.id}
-            postId={postId}
-            comment={reply}
-            depth={depth + 1}
-          />
-        ))}
+        <RepliesSection comment={comment} />
       </div>
-      <CommentLikeButton postId={postId} comment={comment} />
+      <CommentLikeButton comment={comment} queryKey={queryKeys.comments.list(postId)} />
     </div>
   );
 }

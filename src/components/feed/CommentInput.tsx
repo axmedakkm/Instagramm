@@ -10,13 +10,13 @@ import { queryKeys } from "@/services/queryKeys";
 
 export function CommentInput({
   postId,
-  parentId,
+  parentCommentId,
   autoFocus = false,
   placeholder = "Add a comment...",
   onPosted,
 }: {
   postId: string;
-  parentId?: string;
+  parentCommentId?: string;
   autoFocus?: boolean;
   placeholder?: string;
   onPosted?: () => void;
@@ -25,11 +25,16 @@ export function CommentInput({
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () => commentsApi.create(postId, text.trim(), parentId),
+    mutationFn: () => commentsApi.create(postId, text.trim(), parentCommentId),
     onSuccess: () => {
       setText("");
       queryClient.invalidateQueries({ queryKey: queryKeys.comments.list(postId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(postId) });
+      if (parentCommentId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.comments.replies(parentCommentId),
+        });
+      }
       onPosted?.();
     },
     onError: () => {

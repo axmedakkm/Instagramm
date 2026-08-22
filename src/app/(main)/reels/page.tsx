@@ -37,16 +37,16 @@ export default function ReelsPage() {
   return (
     <div className="no-scrollbar h-screen snap-y snap-mandatory overflow-y-scroll">
       {posts.map((post) => {
-        const media = post.media[0];
+        const mediaUrl = post.mediaUrls[0];
         return (
           <section
             key={post.id}
             className="relative flex h-screen w-full snap-start items-center justify-center bg-black"
           >
             <div className="relative h-full max-h-screen w-full max-w-md">
-              {media?.type === "video" ? (
+              {post.mediaType === "video" ? (
                 <video
-                  src={media.url}
+                  src={mediaUrl}
                   autoPlay
                   loop
                   muted={isMuted}
@@ -55,8 +55,8 @@ export default function ReelsPage() {
                 />
               ) : (
                 <Image
-                  src={media?.url ?? ""}
-                  alt={post.caption ?? "Reel"}
+                  src={mediaUrl ?? ""}
+                  alt={post.caption || "Reel"}
                   fill
                   className="object-contain"
                 />
