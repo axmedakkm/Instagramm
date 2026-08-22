@@ -113,7 +113,7 @@ export default function PostDetailPage({
             alt={post.caption || "Post"}
             fill
             className="object-contain"
-            priority
+            preload
           />
         )}
         {post.mediaUrls.length > 1 && (
