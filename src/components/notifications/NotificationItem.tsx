@@ -1,14 +1,11 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
 import { Heart, MessageCircle, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { QuickFollowButton } from "@/components/shared/QuickFollowButton";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { cn } from "@/lib/utils";
-import { usersApi } from "@/services/api";
 import type { Notification } from "@/types";
 
 const NOTIFICATION_COPY: Record<Notification["type"], string> = {
@@ -28,35 +25,6 @@ const NOTIFICATION_ICON: Record<Notification["type"], typeof Heart> = {
   follow_request: UserPlus,
   mention: MessageCircle,
 };
-
-/**
- * The notification's `actor` is the backend's "short" user shape — it
- * doesn't carry `isFollowedByMe`, so this can't reuse the optimistic
- * `FollowButton`. It's a fire-and-forget follow action instead, with local
- * state standing in for server truth once clicked.
- */
-function NotificationFollowButton({ userId }: { userId: string }) {
-  const [justFollowed, setJustFollowed] = useState(false);
-
-  const mutation = useMutation({
-    mutationFn: () => usersApi.follow(userId),
-    onSuccess: () => setJustFollowed(true),
-  });
-
-  return (
-    <Button
-      size="sm"
-      variant={justFollowed ? "secondary" : "default"}
-      disabled={justFollowed || mutation.isPending}
-      onClick={(event) => {
-        event.preventDefault();
-        mutation.mutate();
-      }}
-    >
-      {justFollowed ? "Requested" : "Follow"}
-    </Button>
-  );
-}
 
 export function NotificationItem({
   notification,
@@ -95,7 +63,7 @@ export function NotificationItem({
 
       {(notification.type === "follow" ||
         notification.type === "follow_request") && (
-        <NotificationFollowButton userId={notification.actor.id} />
+        <QuickFollowButton userId={notification.actor.id} />
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
+import { useAuthStore } from "@/store/useAuthStore";
 import type { User } from "@/types";
 
 export function FollowButton({
@@ -16,6 +17,7 @@ export function FollowButton({
   className?: string;
 }) {
   const queryClient = useQueryClient();
+  const currentUserId = useAuthStore((state) => state.user?.id);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -63,6 +65,16 @@ export function FollowButton({
         queryKey: queryKeys.users.detail(user.username),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.suggestions });
+      // Keep any open followers/following modals in sync: the target's
+      // follower list changed, and so did the current user's following list.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.users.followers(user.id),
+      });
+      if (currentUserId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.users.following(currentUserId),
+        });
+      }
     },
   });
 
