@@ -213,7 +213,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             alt={`${currentGroup.user.username}'s story`}
             fill
             className="object-contain"
-            priority
+            preload
           />
         )}
 

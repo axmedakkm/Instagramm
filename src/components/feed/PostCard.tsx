@@ -194,7 +194,7 @@ export function PostCard({ post }: { post: Post }) {
                 "object-cover transition-opacity",
                 index === mediaIndex ? "opacity-100" : "opacity-0 pointer-events-none absolute",
               )}
-              priority={index === 0}
+              preload={index === 0}
             />
           ))
         )}
