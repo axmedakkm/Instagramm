@@ -13,7 +13,16 @@ import { useUIStore } from "@/store/useUIStore";
 export function StoriesBar() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const openCreatePost = useUIStore((state) => state.openCreatePost);
+  const openCreateStory = useUIStore((state) => state.openCreateStory);
+
+  // `/stories/feed` only returns stories from people you follow, never your
+  // own — fetch those separately.
+  const { data: myStories } = useQuery({
+    queryKey: queryKeys.stories.byUser(currentUser?.id ?? ""),
+    queryFn: () => storiesApi.byUser(currentUser!.id),
+    enabled: !!currentUser,
+    staleTime: 60 * 1000,
+  });
 
   const { data: storyGroups, isLoading } = useQuery({
     queryKey: queryKeys.stories.feed,
@@ -21,9 +30,8 @@ export function StoriesBar() {
     staleTime: 60 * 1000,
   });
 
-  const myGroup = storyGroups?.find(
-    (group) => group.user.id === currentUser?.id,
-  );
+  const hasMyStories = !!myStories && myStories.length > 0;
+  const myStoriesHaveUnviewed = !!myStories?.some((story) => !story.isViewedByMe);
 
   return (
     <div className="no-scrollbar flex gap-4 overflow-x-auto border-b border-border px-4 py-4">
@@ -31,19 +39,19 @@ export function StoriesBar() {
         <button
           type="button"
           onClick={() =>
-            myGroup
+            hasMyStories
               ? router.push(`/stories?u=${currentUser.username}`)
-              : openCreatePost()
+              : openCreateStory()
           }
           className="flex w-16 shrink-0 flex-col items-center gap-1"
         >
           <div className="relative">
             <StoryRing
               user={currentUser}
-              hasStory={!!myGroup}
-              hasUnviewed={myGroup?.hasUnviewed}
+              hasStory={hasMyStories}
+              hasUnviewed={myStoriesHaveUnviewed}
             />
-            {!myGroup && (
+            {!hasMyStories && (
               <span className="absolute bottom-0 right-0 flex size-4 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground">
                 <Plus className="size-2.5" />
               </span>
@@ -75,7 +83,7 @@ export function StoriesBar() {
             <StoryRing
               user={group.user}
               hasStory
-              hasUnviewed={group.hasUnviewed}
+              hasUnviewed={group.stories.some((story) => !story.isViewedByMe)}
             />
             <span className="w-full truncate text-center text-xs">
               {group.user.username}

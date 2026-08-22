@@ -4,6 +4,9 @@ interface UIState {
   isCreatePostOpen: boolean;
   openCreatePost: () => void;
   closeCreatePost: () => void;
+  isCreateStoryOpen: boolean;
+  openCreateStory: () => void;
+  closeCreateStory: () => void;
 }
 
 /** Small store for cross-tree UI state that doesn't belong to a single page,
@@ -13,4 +16,7 @@ export const useUIStore = create<UIState>((set) => ({
   isCreatePostOpen: false,
   openCreatePost: () => set({ isCreatePostOpen: true }),
   closeCreatePost: () => set({ isCreatePostOpen: false }),
+  isCreateStoryOpen: false,
+  openCreateStory: () => set({ isCreateStoryOpen: true }),
+  closeCreateStory: () => set({ isCreateStoryOpen: false }),
 }));

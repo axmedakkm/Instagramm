@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -10,18 +10,34 @@ import { TimeAgo } from "@/components/shared/TimeAgo";
 import { cn } from "@/lib/utils";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
+import { useAuthStore } from "@/store/useAuthStore";
+import type { StoryGroup } from "@/types";
 
 const STORY_DURATION_MS = 5000;
 
 export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const router = useRouter();
+  const currentUser = useAuthStore((state) => state.user);
 
   const { data: storyGroups } = useQuery({
     queryKey: queryKeys.stories.feed,
     queryFn: storiesApi.feed,
   });
 
-  const groups = storyGroups ?? [];
+  // `/stories/feed` never includes the current user's own stories, so we
+  // fetch those separately and splice them in when relevant.
+  const { data: myStories } = useQuery({
+    queryKey: queryKeys.stories.byUser(currentUser?.id ?? ""),
+    queryFn: () => storiesApi.byUser(currentUser!.id),
+    enabled: !!currentUser,
+  });
+
+  const groups: StoryGroup[] = [
+    ...(currentUser && myStories && myStories.length > 0
+      ? [{ user: currentUser, stories: myStories }]
+      : []),
+    ...(storyGroups ?? []),
+  ];
 
   // `groupIndex`/`storyIndex` only track *explicit navigation*. Until the
   // viewer has been advanced manually, the active group is derived straight
@@ -72,10 +88,22 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
     }
   };
 
+  const queryClient = useQueryClient();
+
   useEffect(() => {
-    if (!currentStory) return;
-    storiesApi.markViewed(currentStory.id).catch(() => {});
-  }, [currentStory]);
+    if (!currentStory || currentStory.isViewedByMe) return;
+    storiesApi
+      .markViewed(currentStory.id)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
+        if (currentUser) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.stories.byUser(currentUser.id),
+          });
+        }
+      })
+      .catch(() => {});
+  }, [currentStory, queryClient, currentUser]);
 
   useEffect(() => {
     if (!currentStory) return;

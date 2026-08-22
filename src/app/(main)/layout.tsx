@@ -2,6 +2,7 @@ import { CreatePostModal } from "@/components/feed/CreatePostModal";
 import { AuthGate } from "@/components/layout/AuthGate";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { CreateStoryModal } from "@/components/stories/CreateStoryModal";
 
 export default function MainLayout({
   children,
@@ -18,6 +19,7 @@ export default function MainLayout({
         <MobileNav />
       </div>
       <CreatePostModal />
+      <CreateStoryModal />
     </AuthGate>
   );
 }
