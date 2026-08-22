@@ -23,11 +23,13 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const pathname = usePathname();
   const currentUser = useAuthStore((state) => state.user);
 
-  const { data: conversations, isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: queryKeys.conversations.list,
-    queryFn: conversationsApi.list,
+    queryFn: () => conversationsApi.list(),
     refetchInterval: 5000,
   });
+
+  const conversations = data?.items ?? [];
 
   return (
     <div className="flex h-full flex-col">
@@ -47,13 +49,13 @@ export function ConversationList({ activeId }: { activeId?: string }) {
             </div>
           ))}
 
-        {!isLoading && conversations?.length === 0 && (
+        {!isLoading && conversations.length === 0 && (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">
             No conversations yet.
           </p>
         )}
 
-        {conversations?.map((conversation) => {
+        {conversations.map((conversation) => {
           const other = otherParticipant(conversation, currentUser?.id);
           const isActive =
             activeId === conversation.id ||

@@ -8,40 +8,61 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { conversationsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
+import type { Message } from "@/types";
 import type { Socket } from "socket.io-client";
+
+interface SendAck {
+  ok: boolean;
+  message?: Message;
+}
+
+/** Emits over the socket and resolves with the server's ack — matches the
+ * shape documented in `insta_Back/src/socket/index.js`. */
+function sendViaSocket(socket: Socket, conversationId: string, text: string) {
+  return new Promise<Message>((resolve, reject) => {
+    socket.emit(
+      "message:send",
+      { conversationId, text },
+      (ack: SendAck) => {
+        if (ack?.ok && ack.message) resolve(ack.message);
+        else reject(new Error("Socket send failed"));
+      },
+    );
+  });
+}
 
 export function MessageInput({
   conversationId,
   socket,
+  isConnected,
 }: {
   conversationId: string;
   socket: Socket | null;
+  isConnected: boolean;
 }) {
   const [text, setText] = useState("");
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () => conversationsApi.sendMessage(conversationId, text.trim()),
+    // Prefer the realtime channel when it's up (single round trip, instant
+    // delivery to the other participant); fall back to the REST endpoint
+    // otherwise. Never do both — the server broadcasts on each path, so
+    // firing both would create two messages.
+    mutationFn: () =>
+      isConnected && socket
+        ? sendViaSocket(socket, conversationId, text.trim())
+        : conversationsApi.sendMessage(conversationId, text.trim()),
     onSuccess: (message) => {
       setText("");
       queryClient.setQueryData(
         queryKeys.conversations.messages(conversationId),
-        (old: { pages: { items: typeof message[] }[] } | undefined) => {
+        (old: { items: Message[] } | undefined) => {
           if (!old) return old;
-          const pages = [...old.pages];
-          const lastIndex = pages.length - 1;
-          pages[lastIndex] = {
-            ...pages[lastIndex],
-            items: [...pages[lastIndex].items, message],
-          };
-          return { ...old, pages };
+          if (old.items.some((item) => item.id === message.id)) return old;
+          return { ...old, items: [...old.items, message] };
         },
       );
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.list });
-
-      // If the realtime channel is up, broadcast immediately so the other
-      // participant doesn't have to wait for the next poll.
-      socket?.emit("message:send", { conversationId, message });
     },
     onError: () => toast.error("Message failed to send."),
   });

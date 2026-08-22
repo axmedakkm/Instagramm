@@ -3,13 +3,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { MessageInput } from "@/components/messages/MessageInput";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useSocket } from "@/hooks/useSocket";
 import { cn } from "@/lib/utils";
-import { conversationsApi } from "@/services/api";
+import { conversationsApi, messagesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { Message } from "@/types";
@@ -21,12 +21,20 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
   const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const markedReadRef = useRef<Set<string>>(new Set());
   const { socket, isConnected } = useSocket();
 
-  const { data: conversation } = useQuery({
-    queryKey: queryKeys.conversations.detail(conversationId),
-    queryFn: () => conversationsApi.get(conversationId),
+  // There's no `GET /conversations/:id` — the conversations list query
+  // already carries every participant's info, so we read it from there
+  // (and share its cache with `ConversationList`, which fetches the same
+  // key on desktop).
+  const { data: conversationsPage } = useQuery({
+    queryKey: queryKeys.conversations.list,
+    queryFn: () => conversationsApi.list(),
   });
+  const conversation = conversationsPage?.items.find(
+    (item) => item.id === conversationId,
+  );
 
   const { data: messagesPage } = useQuery({
     queryKey: queryKeys.conversations.messages(conversationId),
@@ -34,23 +42,38 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
     refetchInterval: isConnected ? false : POLL_INTERVAL_MS,
   });
 
-  const messages = messagesPage?.items ?? [];
+  const messages = useMemo(() => messagesPage?.items ?? [], [messagesPage]);
   const other = conversation?.participants.find(
     (p) => p.id !== currentUser?.id,
   );
 
   useEffect(() => {
-    conversationsApi.markRead(conversationId).catch(() => {});
-  }, [conversationId]);
-
-  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  // No bulk "mark conversation read" endpoint — send a per-message read
+  // receipt for every incoming message we haven't already marked.
+  useEffect(() => {
+    if (!currentUser) return;
+    messages
+      .filter(
+        (message) =>
+          message.sender.id !== currentUser.id &&
+          !message.isRead &&
+          !markedReadRef.current.has(message.id),
+      )
+      .forEach((message) => {
+        markedReadRef.current.add(message.id);
+        messagesApi.markRead(message.id).catch(() => {
+          markedReadRef.current.delete(message.id);
+        });
+      });
+  }, [messages, currentUser]);
 
   useEffect(() => {
     if (!socket) return;
 
-    socket.emit("conversation:join", { conversationId });
+    socket.emit("conversation:join", conversationId);
 
     const handleIncoming = (message: Message) => {
       if (message.conversationId !== conversationId) return;
@@ -62,12 +85,13 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
           return { ...old, items: [...old.items, message] };
         },
       );
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.list });
     };
 
     socket.on("message:new", handleIncoming);
 
     return () => {
-      socket.emit("conversation:leave", { conversationId });
+      socket.emit("conversation:leave", conversationId);
       socket.off("message:new", handleIncoming);
     };
   }, [socket, conversationId, queryClient]);
@@ -121,7 +145,11 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      <MessageInput conversationId={conversationId} socket={socket} />
+      <MessageInput
+        conversationId={conversationId}
+        socket={socket}
+        isConnected={isConnected}
+      />
     </div>
   );
 }
