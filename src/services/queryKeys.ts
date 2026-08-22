@@ -17,11 +17,11 @@ export const queryKeys = {
     feed: ["posts", "feed"] as const,
     explore: ["posts", "explore"] as const,
     byUser: (userId: string) => ["posts", "user", userId] as const,
-    saved: ["posts", "saved"] as const,
     detail: (postId: string) => ["posts", "detail", postId] as const,
   },
   comments: {
     list: (postId: string) => ["comments", postId] as const,
+    replies: (commentId: string) => ["comments", "replies", commentId] as const,
   },
   stories: {
     feed: ["stories", "feed"] as const,

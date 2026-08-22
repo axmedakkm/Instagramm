@@ -21,7 +21,9 @@ export function useSocket() {
       return;
     }
 
-    const nextSocket = io(SOCKET_URL, {
+    // The realtime gateway is mounted on the "/chat" Socket.IO namespace,
+    // not the root namespace.
+    const nextSocket = io(`${SOCKET_URL}/chat`, {
       auth: { token: accessToken },
       transports: ["websocket"],
       reconnectionAttempts: 5,

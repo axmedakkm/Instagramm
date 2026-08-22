@@ -12,6 +12,7 @@ import type {
   Story,
   StoryGroup,
   User,
+  UserSummary,
 } from "@/types";
 
 /** ------------------------------------------------------------------ */
@@ -26,8 +27,6 @@ export const authApi = {
     api.post<AuthResponse>("/auth/register", payload).then((res) => res.data),
 
   logout: () => api.post<void>("/auth/logout").then((res) => res.data),
-
-  me: () => api.get<User>("/auth/me").then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
@@ -35,37 +34,75 @@ export const authApi = {
 /** ------------------------------------------------------------------ */
 
 export const usersApi = {
-  getByUsername: (username: string) =>
-    api.get<User>(`/users/${username}`).then((res) => res.data),
+  /** There's no `/auth/me` on this backend — `/users/me` is the equivalent. */
+  me: () => api.get<User>("/users/me").then((res) => res.data),
+
+  getById: (userId: string) =>
+    api.get<User>(`/users/${userId}`).then((res) => res.data),
+
+  /**
+   * The backend only looks users up by Mongo ObjectId (`GET /users/:userId`),
+   * there's no lookup-by-username route. We resolve the username to an id
+   * via `/users/search` first (it matches on username/fullName), then fetch
+   * the full profile by that id.
+   */
+  getByUsername: async (username: string): Promise<User> => {
+    const { data } = await api.get<PaginatedResponse<UserSummary>>(
+      "/users/search",
+      { params: { q: username, limit: 5 } },
+    );
+    const match = data.items.find(
+      (user) => user.username.toLowerCase() === username.toLowerCase(),
+    );
+    if (!match) {
+      throw new Error(`No user found with username "${username}"`);
+    }
+    return usersApi.getById(match.id);
+  },
 
   search: (query: string) =>
     api
-      .get<User[]>("/users/search", { params: { q: query } })
-      .then((res) => res.data),
+      .get<PaginatedResponse<UserSummary>>("/users/search", {
+        params: { q: query, limit: 10 },
+      })
+      .then((res) => res.data.items),
 
   suggestions: () =>
-    api.get<User[]>("/users/suggestions").then((res) => res.data),
+    api.get<UserSummary[]>("/users/suggestions").then((res) => res.data),
 
   follow: (userId: string) =>
-    api.post<void>(`/users/${userId}/follow`).then((res) => res.data),
+    api
+      .post<{ status: "accepted" | "pending" }>(`/users/${userId}/follow`)
+      .then((res) => res.data),
 
   unfollow: (userId: string) =>
     api.delete<void>(`/users/${userId}/follow`).then((res) => res.data),
 
-  followers: (userId: string) =>
-    api.get<User[]>(`/users/${userId}/followers`).then((res) => res.data),
+  followers: (userId: string, page?: number) =>
+    api
+      .get<PaginatedResponse<UserSummary>>(`/users/${userId}/followers`, {
+        params: { page },
+      })
+      .then((res) => res.data),
 
-  following: (userId: string) =>
-    api.get<User[]>(`/users/${userId}/following`).then((res) => res.data),
+  following: (userId: string, page?: number) =>
+    api
+      .get<PaginatedResponse<UserSummary>>(`/users/${userId}/following`, {
+        params: { page },
+      })
+      .then((res) => res.data),
 
-  updateProfile: (payload: Partial<Pick<User, "fullName" | "bio" | "website" | "isPrivate">>) =>
-    api.patch<User>("/users/me", payload).then((res) => res.data),
+  updateProfile: (
+    payload: Partial<Pick<User, "fullName" | "bio" | "website" | "isPrivate">>,
+  ) => api.patch<User>("/users/me", payload).then((res) => res.data),
 
   updateAvatar: (file: File) =>
     api
-      .patch<User>("/users/me/avatar", toFormData({ avatar: file }), {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
+      .post<{ avatarUrl: string }>(
+        "/users/me/avatar",
+        toFormData({ file }),
+        { headers: { "Content-Type": "multipart/form-data" } },
+      )
       .then((res) => res.data),
 };
 
@@ -80,26 +117,21 @@ export interface CreatePostPayload {
 }
 
 export const postsApi = {
-  feed: (cursor?: string) =>
+  feed: (page?: number) =>
     api
-      .get<PaginatedResponse<Post>>("/posts/feed", { params: { cursor } })
+      .get<PaginatedResponse<Post>>("/posts/feed", { params: { page } })
       .then((res) => res.data),
 
-  explore: (cursor?: string) =>
+  explore: (page?: number) =>
     api
-      .get<PaginatedResponse<Post>>("/posts/explore", { params: { cursor } })
+      .get<PaginatedResponse<Post>>("/posts/explore", { params: { page } })
       .then((res) => res.data),
 
-  byUser: (userId: string, cursor?: string) =>
+  byUser: (userId: string, page?: number) =>
     api
-      .get<PaginatedResponse<Post>>(`/posts/user/${userId}`, {
-        params: { cursor },
+      .get<PaginatedResponse<Post>>(`/users/${userId}/posts`, {
+        params: { page },
       })
-      .then((res) => res.data),
-
-  saved: (cursor?: string) =>
-    api
-      .get<PaginatedResponse<Post>>("/posts/saved", { params: { cursor } })
       .then((res) => res.data),
 
   get: (postId: string) =>
@@ -110,7 +142,7 @@ export const postsApi = {
       .post<Post>(
         "/posts",
         toFormData({
-          images: payload.images,
+          media: payload.images,
           caption: payload.caption,
           location: payload.location,
         }),
@@ -139,16 +171,24 @@ export const postsApi = {
 /** ------------------------------------------------------------------ */
 
 export const commentsApi = {
-  list: (postId: string, cursor?: string) =>
+  /** Top-level comments only — the backend never nests replies inline. */
+  list: (postId: string, page?: number) =>
     api
-      .get<PaginatedResponse<Comment>>(`/comments/post/${postId}`, {
-        params: { cursor },
+      .get<PaginatedResponse<Comment>>(`/posts/${postId}/comments`, {
+        params: { page },
       })
       .then((res) => res.data),
 
-  create: (postId: string, text: string, parentId?: string) =>
+  replies: (commentId: string, page?: number) =>
     api
-      .post<Comment>(`/comments/post/${postId}`, { text, parentId })
+      .get<PaginatedResponse<Comment>>(`/comments/${commentId}/replies`, {
+        params: { page },
+      })
+      .then((res) => res.data),
+
+  create: (postId: string, text: string, parentCommentId?: string) =>
+    api
+      .post<Comment>(`/posts/${postId}/comments`, { text, parentCommentId })
       .then((res) => res.data),
 
   delete: (commentId: string) =>
@@ -166,10 +206,11 @@ export const commentsApi = {
 /** ------------------------------------------------------------------ */
 
 export const storiesApi = {
+  /** Active stories from people you follow, grouped by author. */
   feed: () => api.get<StoryGroup[]>("/stories/feed").then((res) => res.data),
 
   byUser: (userId: string) =>
-    api.get<Story[]>(`/stories/user/${userId}`).then((res) => res.data),
+    api.get<Story[]>(`/users/${userId}/stories`).then((res) => res.data),
 
   create: (file: File) =>
     api
@@ -190,21 +231,28 @@ export const storiesApi = {
 /** ------------------------------------------------------------------ */
 
 export const conversationsApi = {
-  list: () => api.get<Conversation[]>("/conversations").then((res) => res.data),
-
-  get: (conversationId: string) =>
-    api.get<Conversation>(`/conversations/${conversationId}`).then((res) => res.data),
-
-  getOrCreateWithUser: (userId: string) =>
+  list: (page?: number) =>
     api
-      .post<Conversation>("/conversations", { userId })
+      .get<PaginatedResponse<Conversation>>("/conversations", {
+        params: { page },
+      })
       .then((res) => res.data),
 
-  messages: (conversationId: string, cursor?: string) =>
+  /**
+   * There's no `GET /conversations/:id` — creating with the same
+   * participant just returns the existing conversation, so this doubles as
+   * "get or create" for a 1:1 thread.
+   */
+  getOrCreateWithUser: (userId: string) =>
+    api
+      .post<Conversation>("/conversations", { participantIds: [userId] })
+      .then((res) => res.data),
+
+  messages: (conversationId: string, page?: number) =>
     api
       .get<PaginatedResponse<Message>>(
         `/conversations/${conversationId}/messages`,
-        { params: { cursor } },
+        { params: { page } },
       )
       .then((res) => res.data),
 
@@ -212,11 +260,15 @@ export const conversationsApi = {
     api
       .post<Message>(`/conversations/${conversationId}/messages`, { text })
       .then((res) => res.data),
+};
 
-  markRead: (conversationId: string) =>
-    api
-      .post<void>(`/conversations/${conversationId}/read`)
-      .then((res) => res.data),
+export const messagesApi = {
+  /** Per-message read receipt — there's no bulk "mark conversation read". */
+  markRead: (messageId: string) =>
+    api.post<void>(`/messages/${messageId}/read`).then((res) => res.data),
+
+  delete: (messageId: string) =>
+    api.delete<void>(`/messages/${messageId}`).then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
@@ -224,10 +276,10 @@ export const conversationsApi = {
 /** ------------------------------------------------------------------ */
 
 export const notificationsApi = {
-  list: (cursor?: string) =>
+  list: (page?: number) =>
     api
       .get<PaginatedResponse<Notification>>("/notifications", {
-        params: { cursor },
+        params: { page },
       })
       .then((res) => res.data),
 
@@ -247,8 +299,10 @@ export const notificationsApi = {
 export const mediaApi = {
   upload: (file: File) =>
     api
-      .post<{ url: string }>("/media/upload", toFormData({ file }), {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
+      .post<{ url: string; mediaType: "image" | "video" }>(
+        "/media/upload",
+        toFormData({ file }),
+        { headers: { "Content-Type": "multipart/form-data" } },
+      )
       .then((res) => res.data),
 };
