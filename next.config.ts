@@ -13,6 +13,16 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "**",
       },
+      {
+        protocol: "https",
+        hostname: "instagram-back-jsr6.onrender.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "http",
+        hostname: "instagram-back-jsr6.onrender.com",
+        pathname: "/**",
+      },
     ],
   },
 };
