@@ -18,10 +18,13 @@ export function FollowButton({
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () =>
-      user.isFollowedByMe
-        ? usersApi.unfollow(user.id)
-        : usersApi.follow(user.id),
+    mutationFn: async () => {
+      if (user.isFollowedByMe) {
+        await usersApi.unfollow(user.id);
+      } else {
+        await usersApi.follow(user.id);
+      }
+    },
     onMutate: async () => {
       await queryClient.cancelQueries({
         queryKey: queryKeys.users.detail(user.username),

@@ -56,7 +56,11 @@ export function SuggestedUsers({ limit = 5 }: { limit?: number }) {
               {user.fullName}
             </p>
           </div>
-          <FollowButton user={user} className="h-7 min-w-0 px-2 text-xs" />
+          {/* Suggestions only ever include people you don't already follow. */}
+          <FollowButton
+            user={{ ...user, isFollowedByMe: false }}
+            className="h-7 min-w-0 px-2 text-xs"
+          />
         </li>
       ))}
     </ul>

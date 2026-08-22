@@ -16,7 +16,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import type { ApiError } from "@/types";
 
 const loginSchema = z.object({
-  identifier: z.string().min(1, "Enter your email or username"),
+  login: z.string().min(1, "Enter your email or username"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -32,7 +32,7 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { identifier: "", password: "" },
+    defaultValues: { login: "", password: "" },
   });
 
   const onSubmit = async (values: LoginFormValues) => {
@@ -60,19 +60,19 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="identifier" className="sr-only">
+            <Label htmlFor="login" className="sr-only">
               Email or username
             </Label>
             <Input
-              id="identifier"
+              id="login"
               placeholder="Email or username"
               autoComplete="username"
-              aria-invalid={!!errors.identifier}
-              {...register("identifier")}
+              aria-invalid={!!errors.login}
+              {...register("login")}
             />
-            {errors.identifier && (
+            {errors.login && (
               <p className="text-xs text-destructive">
-                {errors.identifier.message}
+                {errors.login.message}
               </p>
             )}
           </div>
