@@ -15,11 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
+import { useAuthStore } from "@/store/useAuthStore";
 import { useUIStore } from "@/store/useUIStore";
 
 export function CreateStoryModal() {
   const isOpen = useUIStore((state) => state.isCreateStoryOpen);
   const close = useUIStore((state) => state.closeCreateStory);
+  const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +54,15 @@ export function CreateStoryModal() {
     onSuccess: () => {
       toast.success("Your story was shared!");
       queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
+      // The stories bar's "Your story" ring reads this key to know you
+      // have an active story — without invalidating it too, the ring
+      // keeps showing the "add a story" plus badge until something else
+      // happens to refetch it.
+      if (currentUser) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.stories.byUser(currentUser.id),
+        });
+      }
       resetForm();
       close();
     },
