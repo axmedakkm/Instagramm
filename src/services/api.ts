@@ -224,6 +224,10 @@ export const storiesApi = {
 
   markViewed: (storyId: string) =>
     api.post<void>(`/stories/${storyId}/view`).then((res) => res.data),
+
+  /** Author-only — who has watched this story. */
+  viewers: (storyId: string) =>
+    api.get<UserSummary[]>(`/stories/${storyId}/viewers`).then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
@@ -256,9 +260,12 @@ export const conversationsApi = {
       )
       .then((res) => res.data),
 
-  sendMessage: (conversationId: string, text: string) =>
+  sendMessage: (
+    conversationId: string,
+    payload: { text?: string; mediaUrl?: string },
+  ) =>
     api
-      .post<Message>(`/conversations/${conversationId}/messages`, { text })
+      .post<Message>(`/conversations/${conversationId}/messages`, payload)
       .then((res) => res.data),
 };
 

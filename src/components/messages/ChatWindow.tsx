@@ -131,7 +131,14 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                     : "bg-muted text-foreground",
                 )}
               >
-                <p>{message.text}</p>
+                {message.mediaUrl && (
+                  <audio
+                    src={message.mediaUrl}
+                    controls
+                    className="h-9 max-w-full"
+                  />
+                )}
+                {message.text && <p>{message.text}</p>}
                 <TimeAgo
                   date={message.createdAt}
                   className={cn(
@@ -145,11 +152,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
         <div ref={bottomRef} />
       </div>
 
-      <MessageInput
-        conversationId={conversationId}
-        socket={socket}
-        isConnected={isConnected}
-      />
+      <MessageInput conversationId={conversationId} />
     </div>
   );
 }
