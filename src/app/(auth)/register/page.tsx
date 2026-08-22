@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
-import { Instagram, Loader2 } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -63,7 +63,7 @@ export default function RegisterPage() {
     <div className="w-full max-w-sm space-y-4">
       <div className="rounded-lg border border-border bg-background px-10 py-12">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <Instagram className="size-10" />
+          <Camera className="size-10" />
           <h1 className="text-2xl font-semibold">Instagramm</h1>
           <p className="text-sm text-muted-foreground">
             Sign up to see photos and videos from your friends.

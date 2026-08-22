@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { conversationsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import type { Conversation, Message } from "@/types";
+import type { Message } from "@/types";
 
 /** Falls back to short-polling whenever the realtime socket is down. */
 const POLL_INTERVAL_MS = 3000;

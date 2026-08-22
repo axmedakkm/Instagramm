@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { cn } from "@/lib/utils";
@@ -21,17 +21,21 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
     queryFn: storiesApi.feed,
   });
 
-  const groups = useMemo(() => storyGroups ?? [], [storyGroups]);
-  const [groupIndex, setGroupIndex] = useState(0);
+  const groups = storyGroups ?? [];
+
+  // `groupIndex`/`storyIndex` only track *explicit navigation*. Until the
+  // viewer has been advanced manually, the active group is derived straight
+  // from `initialUsername` during render instead of being synced via an
+  // effect, so there's no extra render pass once story data loads.
+  const [manualGroupIndex, setManualGroupIndex] = useState<number | null>(null);
   const [storyIndex, setStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0);
 
-  useEffect(() => {
-    const initialGroupIndex = groups.findIndex(
-      (group) => group.user.username === initialUsername,
-    );
-    if (initialGroupIndex >= 0) setGroupIndex(initialGroupIndex);
-  }, [groups, initialUsername]);
+  const derivedGroupIndex = groups.findIndex(
+    (group) => group.user.username === initialUsername,
+  );
+  const groupIndex =
+    manualGroupIndex ?? (derivedGroupIndex >= 0 ? derivedGroupIndex : 0);
 
   const currentGroup = groups[groupIndex];
   const currentStory = currentGroup?.stories[storyIndex];
@@ -46,7 +50,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
       return;
     }
     if (groupIndex < groups.length - 1) {
-      setGroupIndex((i) => i + 1);
+      setManualGroupIndex(groupIndex + 1);
       setStoryIndex(0);
       setProgress(0);
       return;
@@ -62,7 +66,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
     }
     if (groupIndex > 0) {
       const previousGroup = groups[groupIndex - 1];
-      setGroupIndex((i) => i - 1);
+      setManualGroupIndex(groupIndex - 1);
       setStoryIndex((previousGroup?.stories.length ?? 1) - 1);
       setProgress(0);
     }

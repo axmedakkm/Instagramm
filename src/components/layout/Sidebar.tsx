@@ -6,7 +6,7 @@ import {
   Film,
   Heart,
   Home,
-  Instagram,
+  Camera,
   MessageCircle,
   PlusSquare,
   Search,
@@ -56,7 +56,7 @@ export function Sidebar() {
         href="/feed"
         className="mb-8 flex items-center gap-2 px-2 text-xl font-bold"
       >
-        <Instagram className="size-7 shrink-0" />
+        <Camera className="size-7 shrink-0" />
         <span className="hidden xl:inline">Instagramm</span>
       </Link>
 

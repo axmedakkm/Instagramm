@@ -51,7 +51,12 @@ function rejectQueue(error: unknown) {
 
 function redirectToLogin() {
   authStorage.logout();
+  // A hard navigation (rather than the Next.js router) is intentional here:
+  // this runs inside an Axios interceptor, outside the React tree, and we
+  // want a full reload so every in-memory store/query cache is wiped along
+  // with the now-invalid tokens.
   if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/login";
   }
 }
