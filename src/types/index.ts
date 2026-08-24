@@ -126,26 +126,38 @@ export interface Message {
 
 export type CallType = "audio" | "video";
 
+/** Mirrors the `CallStatus` enum in the backend's prisma schema. */
 export type CallStatus =
   | "ringing"
   | "ongoing"
-  | "accepted"
   | "rejected"
   | "missed"
-  | "ended";
+  | "completed";
 
-/** A call record as returned by `POST /chats/:chatId/calls`,
- * `POST /calls/:callId/answer`, and `POST /calls/:callId/end`. */
-export interface Call {
-  id: string;
+/** `POST /chats/:chatId/calls` — the persisted call row. The id comes back
+ * as `callId` (not `id`) and the caller is a bare id, not an embedded user. */
+export interface CallSession {
+  callId: string;
   chatId: string;
+  callerId: string;
   type: CallType;
   status: CallStatus;
-  caller: UserSummary;
-  startedAt: string;
-  endedAt: string | null;
-  /** Seconds — null while the call hasn't ended yet. */
-  duration: number | null;
+  createdAt: string;
+}
+
+/** `POST /calls/:callId/answer` */
+export interface CallAnswerResult {
+  callId: string;
+  status: CallStatus;
+}
+
+/** `POST /calls/:callId/end` — `status` is the literal "ended" whatever the
+ * row was actually recorded as (completed or missed). */
+export interface CallEndSummary {
+  callId: string;
+  status: "ended";
+  duration: number;
+  endedAt: string;
 }
 
 export type NotificationType =

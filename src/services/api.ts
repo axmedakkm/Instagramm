@@ -1,7 +1,9 @@
 import { api, toFormData } from "@/lib/axios";
 import type {
   AuthResponse,
-  Call,
+  CallAnswerResult,
+  CallEndSummary,
+  CallSession,
   CallType,
   Comment,
   Conversation,
@@ -299,18 +301,29 @@ export const messagesApi = {
 /** Calls (audio/video)                                                 */
 /** ------------------------------------------------------------------ */
 
+/**
+ * These endpoints only *persist* a call — none of them signal anyone. Ringing
+ * the other party, accept/reject/end and the SDP/ICE exchange all travel over
+ * the "/chat" socket ("call:initiate" and friends); see `CallProvider`. The
+ * ids are not interchangeable either: `callId` here is the Prisma row id,
+ * while the socket mints its own id for the signalling.
+ */
 export const callsApi = {
-  /** Creates the call record; the backend notifies the other participant(s)
-   * over the "/chat" socket ("call:incoming") as a side effect. */
+  /** Writes the "ringing" row. Returns it as `callId`, not `id`. */
   start: (chatId: string, type: CallType) =>
-    api.post<Call>(`/chats/${chatId}/calls`, { type }).then((res) => res.data),
+    api
+      .post<CallSession>(`/chats/${chatId}/calls`, { type })
+      .then((res) => res.data),
 
-  /** Accept or reject an incoming call. */
+  /** Records the outcome. Any participant may write it, not just the callee —
+   * which is what lets the caller keep the row up to date. */
   answer: (callId: string, action: "accept" | "reject") =>
-    api.post<Call>(`/calls/${callId}/answer`, { action }).then((res) => res.data),
+    api
+      .post<CallAnswerResult>(`/calls/${callId}/answer`, { action })
+      .then((res) => res.data),
 
   end: (callId: string) =>
-    api.post<Call>(`/calls/${callId}/end`).then((res) => res.data),
+    api.post<CallEndSummary>(`/calls/${callId}/end`).then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */

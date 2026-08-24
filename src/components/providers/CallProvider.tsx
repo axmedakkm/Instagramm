@@ -50,10 +50,27 @@ interface SignalData {
 }
 
 interface Session {
-  callId: string;
+  /** Minted by the server's `call:initiate` ack and relayed to the callee in
+   * `call:incoming` — the one id both peers share, so every socket relay
+   * (accept/reject/end/signal) is addressed by it. */
+  signalId: string;
+  /** Prisma id of the persisted `calls` row. Only the caller ever learns it
+   * (it comes back from `POST /chats/:id/calls`, and the server does not put
+   * it in `call:incoming`), so the caller writes every REST status update —
+   * for the callee, and for a caller whose row failed to write, it is null. */
+  recordId: string | null;
+  /** Set when `call:accepted` arrives before the history row does, so the
+   * "answered" write can be replayed once `recordId` shows up. */
+  acceptedBeforeRecord?: boolean;
   conversationId: string;
   role: "caller" | "callee";
   callType: CallType;
+}
+
+interface InitiateAck {
+  ok: boolean;
+  callId?: string;
+  message?: string;
 }
 
 /** Turns a `getUserMedia` rejection into a message that tells the user what
@@ -150,6 +167,25 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     [socket],
   );
 
+  /** `call:initiate` is the only call event whose ack we need — it carries
+   * the shared call id, and it is what actually rings the other side. */
+  const initiateOverSocket = useCallback(
+    (conversationId: string, type: CallType) =>
+      new Promise<string>((resolve, reject) => {
+        if (!socket) {
+          reject(new Error("not connected"));
+          return;
+        }
+        socket.emit(
+          "call:initiate",
+          { conversationId, callType: type },
+          (ack: InitiateAck) => {
+            if (ack?.ok && ack.callId) resolve(ack.callId);
+            else reject(new Error(ack?.message ?? "call:initiate failed"));
+          },
+        );
+      }),
+    [socket],
   /**
    * Drops a "📞 Missed call" / "🎥 Video call · 2:05" style line into the
    * conversation once a call ends, same as WhatsApp/Instagram's call log.
@@ -233,7 +269,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         const session = sessionRef.current;
         if (event.candidate && session) {
           emit("call:signal", {
-            callId: session.callId,
+            callId: session.signalId,
             conversationId: session.conversationId,
             data: { kind: "ice", candidate: event.candidate.toJSON() },
           });
@@ -262,9 +298,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               logCallOutcome(session.conversationId, session.callType, "failed");
             }
           }
-          callsApi.end(session.callId).catch(() => {
-            /* best-effort — the peer connection is already torn down */
+          emit("call:end", {
+            callId: session.signalId,
+            conversationId: session.conversationId,
           });
+          if (session.recordId) {
+            callsApi.end(session.recordId).catch(() => {
+              /* best-effort — the peer connection is already torn down */
+            });
+          }
           cleanup();
         }
       };
@@ -310,26 +352,47 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      let signalId: string;
       try {
-        const call = await callsApi.start(conversationId, type);
-        sessionRef.current = {
-          callId: call.id,
-          conversationId,
-          role: "caller",
-          callType: type,
-        };
-        createPeerConnection(stream);
-      } catch (error) {
-        toast.error(
-          isAxiosError(error)
-            ? ((error.response?.data as { message?: string })?.message ??
-                "Couldn't start the call.")
-            : "Couldn't start the call.",
-        );
+        // This is the part that actually rings the callee: the server relays
+        // `call:incoming` to the conversation's other participants.
+        signalId = await initiateOverSocket(conversationId, type);
+      } catch {
+        toast.error("Couldn't start the call.");
         cleanup();
+        return;
+      }
+
+      sessionRef.current = {
+        signalId,
+        recordId: null,
+        conversationId,
+        role: "caller",
+        callType: type,
+      };
+      createPeerConnection(stream);
+
+      // History row only. The call is already ringing by now, so failing here
+      // costs a row, not the call — `recordId` stays null and the REST status
+      // updates below are skipped.
+      try {
+        const record = await callsApi.start(conversationId, type);
+        const session = sessionRef.current;
+        if (!session || session.signalId !== signalId) {
+          // The call was over before the row came back — close it so it does
+          // not sit at "ringing" forever.
+          callsApi.end(record.callId).catch(() => {});
+          return;
+        }
+        session.recordId = record.callId;
+        if (session.acceptedBeforeRecord) {
+          callsApi.answer(record.callId, "accept").catch(() => {});
+        }
+      } catch {
+        /* no history row for this call */
       }
     },
-    [socket, getMedia, createPeerConnection, cleanup],
+    [socket, getMedia, initiateOverSocket, createPeerConnection, cleanup],
   );
 
   const acceptCall = useCallback(async () => {
@@ -342,33 +405,54 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       stream = await getMedia(session.callType);
     } catch (error) {
       toast.error(describeMediaError(error, session.callType));
-      callsApi.answer(session.callId, "reject").catch(() => {});
+      emit("call:reject", {
+        callId: session.signalId,
+        conversationId: session.conversationId,
+      });
       cleanup();
       return;
     }
 
     try {
       createPeerConnection(stream);
-      await callsApi.answer(session.callId, "accept");
-      // The caller creates the offer once it hears call:accepted.
+      // The caller creates the offer once it hears call:accepted, and writes
+      // the REST status update — we have no `recordId` on this side.
+      emit("call:accept", {
+        callId: session.signalId,
+        conversationId: session.conversationId,
+      });
     } catch {
       toast.error("Couldn't accept the call.");
-      callsApi.answer(session.callId, "reject").catch(() => {});
+      emit("call:reject", {
+        callId: session.signalId,
+        conversationId: session.conversationId,
+      });
       cleanup();
     }
-  }, [getMedia, createPeerConnection, cleanup]);
+  }, [emit, getMedia, createPeerConnection, cleanup]);
 
   const rejectCall = useCallback(() => {
     const session = sessionRef.current;
     if (session) {
-      callsApi.answer(session.callId, "reject").catch(() => {});
+      emit("call:reject", {
+        callId: session.signalId,
+        conversationId: session.conversationId,
+      });
     }
     cleanup();
-  }, [cleanup]);
+  }, [emit, cleanup]);
 
   const endCall = useCallback(() => {
     const session = sessionRef.current;
     if (session) {
+      emit("call:end", {
+        callId: session.signalId,
+        conversationId: session.conversationId,
+      });
+      if (session.recordId) callsApi.end(session.recordId).catch(() => {});
+    }
+    cleanup();
+  }, [emit, cleanup]);
       callsApi.end(session.callId).catch(() => {});
       if (session.role === "caller") {
         logCallOutcome(
@@ -410,11 +494,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }) => {
       // Busy — auto-reject a second incoming call.
       if (sessionRef.current) {
-        callsApi.answer(data.callId, "reject").catch(() => {});
+        socket.emit("call:reject", {
+          callId: data.callId,
+          conversationId: data.conversationId,
+        });
         return;
       }
       sessionRef.current = {
-        callId: data.callId,
+        signalId: data.callId,
+        recordId: null,
         conversationId: data.conversationId,
         role: "callee",
         callType: data.callType,
@@ -429,11 +517,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const pc = pcRef.current;
       if (!session || session.role !== "caller" || !pc) return;
       setStatus("connecting");
+      // The callee accepted but cannot write the row, so we do it here — or
+      // leave a note for startCall if the row has not come back yet.
+      if (session.recordId) {
+        callsApi.answer(session.recordId, "accept").catch(() => {});
+      } else {
+        session.acceptedBeforeRecord = true;
+      }
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.emit("call:signal", {
-          callId: session.callId,
+          callId: session.signalId,
           conversationId: session.conversationId,
           data: { kind: "offer", sdp: offer },
         });
@@ -459,7 +554,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           await pc.setLocalDescription(answer);
           if (session) {
             socket.emit("call:signal", {
-              callId: session.callId,
+              callId: session.signalId,
               conversationId: session.conversationId,
               data: { kind: "answer", sdp: answer },
             });
@@ -481,6 +576,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const onRejected = () => {
       const session = sessionRef.current;
+      if (!session) return;
+      toast("Call declined.");
+      if (session.recordId) {
+        callsApi.answer(session.recordId, "reject").catch(() => {});
       if (session) {
         toast("Call declined.");
         if (session.role === "caller") {
@@ -490,8 +589,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       cleanup();
     };
 
+    // The peer hung up. Only the caller holds the row, so only it closes one.
     const onEnded = () => {
       const session = sessionRef.current;
+      if (session?.recordId) callsApi.end(session.recordId).catch(() => {});
       // Only the caller logs a call-log message (see `logCallOutcome`) — if
       // *we're* the caller, the other side (callee) just ended an in-call or
       // never picked up.
