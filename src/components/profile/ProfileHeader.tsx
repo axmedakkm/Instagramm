@@ -44,18 +44,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
           <h1 className="text-xl">{profile.username}</h1>
           {profile.isVerified && <Badge variant="secondary">Verified</Badge>}
           {profile.isPrivate && <Badge variant="outline">Private</Badge>}
-        </div>
-
-        {isOwner && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              className="flex-1 sm:flex-none"
-              onClick={() => setEditOpen(true)}
-            >
-              Edit profile
-            </Button>
+          {isOwner && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -69,8 +58,8 @@ export function ProfileHeader({ profile }: { profile: User }) {
               </DropdownMenuTrigger>
               <AccountMenuContent />
             </DropdownMenu>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="flex gap-8 text-sm">
           <p>
@@ -100,6 +89,19 @@ export function ProfileHeader({ profile }: { profile: User }) {
             </a>
           )}
         </div>
+
+        {isOwner && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              className="flex-1 sm:flex-none"
+              onClick={() => setEditOpen(true)}
+            >
+              Edit profile
+            </Button>
+          </div>
+        )}
 
         {!isOwner && (
           <div className="flex flex-wrap items-center gap-2">
