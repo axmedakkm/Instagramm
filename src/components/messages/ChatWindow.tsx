@@ -1,14 +1,19 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Image as ImageIcon, Phone, Video } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Phone, Send, Video } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useCall } from "@/components/providers/CallProvider";
 import { MessageInput } from "@/components/messages/MessageInput";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useSendMessage } from "@/hooks/useSendMessage";
 import { useSocket } from "@/hooks/useSocket";
 import { getMessageMediaKind } from "@/lib/media";
 import { cn } from "@/lib/utils";
@@ -27,6 +32,12 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
   const markedReadRef = useRef<Set<string>>(new Set());
   const { socket, isConnected } = useSocket();
   const { startCall } = useCall();
+  /** Full-size view for a tapped chat photo — a modal instead of navigating
+   * away, so the conversation stays put behind it. */
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxReply, setLightboxReply] = useState("");
+  const { send: sendReply, isSending: isSendingReply } =
+    useSendMessage(conversationId);
 
   // There's no `GET /conversations/:id` — the conversations list query
   // already carries every participant's info, so we read it from there
@@ -100,6 +111,18 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
     };
   }, [socket, conversationId, queryClient]);
 
+  const handleLightboxReply = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmed = lightboxReply.trim();
+    if (!trimmed || isSendingReply) return;
+    try {
+      await sendReply({ text: trimmed });
+      setLightboxReply("");
+    } catch {
+      toast.error("Message failed to send.");
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <header className="flex items-center gap-3 border-b border-border px-4 py-3">
@@ -170,10 +193,10 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                 )}
                 {message.mediaUrl &&
                   (getMessageMediaKind(message.mediaUrl) === "image" ? (
-                    <a
-                      href={message.mediaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => setLightboxUrl(message.mediaUrl)}
+                      aria-label="View photo"
                       className="relative block h-52 w-52 max-w-full overflow-hidden rounded-lg"
                     >
                       <Image
@@ -183,7 +206,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                         sizes="208px"
                         className="object-cover"
                       />
-                    </a>
+                    </button>
                   ) : (
                     <audio
                       src={message.mediaUrl}
@@ -206,6 +229,57 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
       </div>
 
       <MessageInput conversationId={conversationId} />
+
+      <Dialog
+        open={!!lightboxUrl}
+        onOpenChange={(open) => {
+          if (open) return;
+          setLightboxUrl(null);
+          setLightboxReply("");
+        }}
+      >
+        <DialogContent
+          className="max-w-3xl border-0 bg-transparent p-0 shadow-none sm:rounded-none"
+          showCloseButton
+        >
+          <DialogTitle className="sr-only">Photo</DialogTitle>
+          {lightboxUrl && (
+            <>
+              <div className="relative h-[80vh] w-full">
+                <Image
+                  src={lightboxUrl}
+                  alt="Photo"
+                  fill
+                  sizes="100vw"
+                  className="object-contain"
+                />
+              </div>
+              {/* Reply without leaving the photo — same send path as the
+               * regular composer, just scoped to this modal. */}
+              <form
+                onSubmit={handleLightboxReply}
+                className="flex items-center gap-2 bg-background px-3 py-2"
+              >
+                <Input
+                  value={lightboxReply}
+                  onChange={(event) => setLightboxReply(event.target.value)}
+                  placeholder="Reply..."
+                  className="flex-1 rounded-full"
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  variant="ghost"
+                  disabled={isSendingReply || !lightboxReply.trim()}
+                  aria-label="Send reply"
+                >
+                  <Send className="size-5" />
+                </Button>
+              </form>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

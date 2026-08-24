@@ -96,6 +96,8 @@ export interface Story {
   caption: string;
   viewsCount: number;
   isViewedByMe: boolean;
+  likesCount: number;
+  isLikedByMe: boolean;
   createdAt: string;
   expiresAt: string;
 }
@@ -103,6 +105,23 @@ export interface Story {
 export interface StoryGroup {
   user: UserSummary;
   stories: Story[];
+}
+
+/**
+ * `GET /stories/me/archive` — every story the signed-in user has ever
+ * posted, active or expired (nothing is deleted once it expires anymore).
+ * No `author`/viewer fields: it's always your own stories, and the archive
+ * is about your content, not who watched it.
+ */
+export interface ArchivedStory {
+  id: string;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+  caption: string;
+  likesCount: number;
+  isExpired: boolean;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface Conversation {

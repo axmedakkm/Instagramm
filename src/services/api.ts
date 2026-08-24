@@ -1,5 +1,6 @@
 import { api, toFormData } from "@/lib/axios";
 import type {
+  ArchivedStory,
   AuthResponse,
   CallAnswerResult,
   CallEndSummary,
@@ -244,9 +245,16 @@ export const storiesApi = {
   markViewed: (storyId: string) =>
     api.post<void>(`/stories/${storyId}/view`).then((res) => res.data),
 
+  like: (storyId: string) =>
+    api.post<void>(`/stories/${storyId}/like`).then((res) => res.data),
+
   /** Author-only — who has watched this story. */
   viewers: (storyId: string) =>
     api.get<UserSummary[]>(`/stories/${storyId}/viewers`).then((res) => res.data),
+
+  /** Author-only — every story ever posted, active or expired. */
+  archive: () =>
+    api.get<ArchivedStory[]>("/stories/me/archive").then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */

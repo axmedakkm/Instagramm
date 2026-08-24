@@ -18,9 +18,11 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
    * the user commits to sending it (or discards it). */
   const [previewFile, setPreviewFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  /** Same idea for a picked-but-not-sent-yet photo. */
+  /** Same idea for a picked-but-not-sent-yet photo, plus an optional caption
+   * to send alongside it. */
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageCaption, setImageCaption] = useState("");
   const [isSendingImage, setIsSendingImage] = useState(false);
 
   const { send, isSending } = useSendMessage(conversationId);
@@ -135,14 +137,17 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     setImageFile(null);
     setImagePreviewUrl(null);
+    setImageCaption("");
   };
 
-  const handleSendImage = async () => {
+  const handleSendImage = async (event?: React.FormEvent) => {
+    event?.preventDefault();
     if (!imageFile) return;
     setIsSendingImage(true);
     try {
       const { url } = await mediaApi.upload(imageFile);
-      await send({ mediaUrl: url });
+      const caption = imageCaption.trim();
+      await send({ mediaUrl: url, text: caption || undefined });
       discardImage();
     } catch {
       toast.error("Photo failed to send.");
@@ -211,10 +216,13 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     );
   }
 
-  // Picked, not sent yet — thumbnail preview with discard/send.
+  // Picked, not sent yet — thumbnail preview with a caption input + discard/send.
   if (imageFile && imagePreviewUrl) {
     return (
-      <div className="flex items-center gap-2 border-t border-border p-3">
+      <form
+        onSubmit={handleSendImage}
+        className="flex items-center gap-2 border-t border-border p-3"
+      >
         <button
           type="button"
           onClick={discardImage}
@@ -231,20 +239,22 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
           alt="Selected photo"
           className="size-12 shrink-0 rounded-lg object-cover"
         />
-        <p className="flex-1 truncate text-sm text-muted-foreground">
-          Photo ready to send
-        </p>
+        <Input
+          value={imageCaption}
+          onChange={(event) => setImageCaption(event.target.value)}
+          placeholder="Add a caption..."
+          className="flex-1 rounded-full"
+        />
         <Button
-          type="button"
+          type="submit"
           size="icon"
           variant="ghost"
-          onClick={handleSendImage}
           disabled={isSendingImage}
           aria-label="Send photo"
         >
           <Send className="size-5" />
         </Button>
-      </div>
+      </form>
     );
   }
 

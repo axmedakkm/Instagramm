@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Archive,
   Bookmark,
   ChevronLeft,
   ChevronRight,
@@ -15,6 +16,7 @@ import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useAccountsStore } from "@/store/useAccountsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export default function SettingsPage() {
@@ -22,6 +24,7 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user);
   const [editOpen, setEditOpen] = useState(false);
   const logout = useAuthStore((state) => state.logout);
+  const forgetAccount = useAccountsStore((state) => state.forget);
 
   return (
     <div className="mx-auto w-full max-w-xl">
@@ -92,11 +95,26 @@ export default function SettingsPage() {
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
+        <button
+          type="button"
+          onClick={() => router.push("/settings/archive")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Archive className="size-5" />
+          Story archive
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
         <Separator className="my-1" />
 
         <button
           type="button"
           onClick={() => {
+            // A real "log out" drops the account from the switcher too —
+            // unlike `AccountMenuContent`'s "Add account", which also calls
+            // `logout()` to clear the active session but keeps the account
+            // remembered so you can switch straight back to it.
+            if (user) forgetAccount(user.id);
             logout();
             router.push("/login");
           }}
