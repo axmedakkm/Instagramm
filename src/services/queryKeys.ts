@@ -12,6 +12,7 @@ export const queryKeys = {
     suggestions: ["users", "suggestions"] as const,
     followers: (userId: string) => ["users", userId, "followers"] as const,
     following: (userId: string) => ["users", userId, "following"] as const,
+    followRequests: ["users", "me", "follow-requests"] as const,
   },
   posts: {
     feed: ["posts", "feed"] as const,
@@ -32,6 +33,9 @@ export const queryKeys = {
     list: ["conversations"] as const,
     messages: (conversationId: string) =>
       ["conversations", conversationId, "messages"] as const,
+  },
+  calls: {
+    history: (chatId: string) => ["calls", chatId, "history"] as const,
   },
   notifications: {
     list: ["notifications"] as const,

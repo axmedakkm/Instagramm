@@ -1,5 +1,6 @@
 "use client";
 
+import { isAxiosError } from "axios";
 import {
   createContext,
   useCallback,
@@ -10,9 +11,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useSocket } from "@/hooks/useSocket";
-import type { UserSummary } from "@/types";
+import { callsApi } from "@/services/api";
+import type { CallType, UserSummary } from "@/types";
 
-export type CallType = "audio" | "video";
+export type { CallType };
 /** idle → (caller) calling → connecting → in-call. (callee) ringing → connecting → in-call. */
 export type CallStatus = "idle" | "calling" | "ringing" | "connecting" | "in-call";
 
@@ -57,10 +59,14 @@ interface Session {
 }
 
 /**
- * Owns 1:1 WebRTC audio/video calls. Signaling (who's calling, accept/reject/
- * end, and the SDP/ICE exchange) is relayed through the "/chat" socket; the
- * media itself flows peer-to-peer. Mount once inside `SocketProvider` and read
- * with `useCall()`.
+ * Owns 1:1 WebRTC audio/video calls. Call lifecycle (start/answer/end) goes
+ * through the REST `/chats/:chatId/calls` + `/calls/:callId/{answer,end}`
+ * endpoints, which persist the call record; the backend relays the
+ * corresponding "call:incoming" / "call:accepted" / "call:rejected" /
+ * "call:ended" notifications to the other participant over the "/chat"
+ * socket. The SDP/ICE exchange itself still flows over that same socket
+ * ("call:signal") — only the media flows peer-to-peer. Mount once inside
+ * `SocketProvider` and read with `useCall()`.
  */
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { socket } = useSocket();
@@ -149,9 +155,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         ) {
           const session = sessionRef.current;
           if (session) {
-            emit("call:end", {
-              callId: session.callId,
-              conversationId: session.conversationId,
+            callsApi.end(session.callId).catch(() => {
+              /* best-effort — the peer connection is already torn down */
             });
           }
           cleanup();
@@ -192,26 +197,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setStatus("calling");
         const stream = await getMedia(type);
 
-        socket.emit(
-          "call:initiate",
-          { conversationId, callType: type },
-          (ack: { ok: boolean; callId?: string; message?: string }) => {
-            if (!ack?.ok || !ack.callId) {
-              toast.error(ack?.message ?? "Couldn't start the call.");
-              cleanup();
-              return;
-            }
-            sessionRef.current = {
-              callId: ack.callId,
-              conversationId,
-              role: "caller",
-              callType: type,
-            };
-            createPeerConnection(stream);
-          },
+        const call = await callsApi.start(conversationId, type);
+        sessionRef.current = {
+          callId: call.id,
+          conversationId,
+          role: "caller",
+          callType: type,
+        };
+        createPeerConnection(stream);
+      } catch (error) {
+        toast.error(
+          isAxiosError(error)
+            ? ((error.response?.data as { message?: string })?.message ??
+                "Couldn't start the call.")
+            : "Couldn't access your camera/microphone.",
         );
-      } catch {
-        toast.error("Couldn't access your camera/microphone.");
         cleanup();
       }
     },
@@ -225,42 +225,30 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setStatus("connecting");
       const stream = await getMedia(session.callType);
       createPeerConnection(stream);
-      emit("call:accept", {
-        callId: session.callId,
-        conversationId: session.conversationId,
-      });
+      await callsApi.answer(session.callId, "accept");
       // The caller creates the offer once it hears call:accepted.
     } catch {
       toast.error("Couldn't access your camera/microphone.");
-      emit("call:reject", {
-        callId: session.callId,
-        conversationId: session.conversationId,
-      });
+      callsApi.answer(session.callId, "reject").catch(() => {});
       cleanup();
     }
-  }, [getMedia, createPeerConnection, emit, cleanup]);
+  }, [getMedia, createPeerConnection, cleanup]);
 
   const rejectCall = useCallback(() => {
     const session = sessionRef.current;
     if (session) {
-      emit("call:reject", {
-        callId: session.callId,
-        conversationId: session.conversationId,
-      });
+      callsApi.answer(session.callId, "reject").catch(() => {});
     }
     cleanup();
-  }, [emit, cleanup]);
+  }, [cleanup]);
 
   const endCall = useCallback(() => {
     const session = sessionRef.current;
     if (session) {
-      emit("call:end", {
-        callId: session.callId,
-        conversationId: session.conversationId,
-      });
+      callsApi.end(session.callId).catch(() => {});
     }
     cleanup();
-  }, [emit, cleanup]);
+  }, [cleanup]);
 
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
@@ -291,10 +279,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }) => {
       // Busy — auto-reject a second incoming call.
       if (sessionRef.current) {
-        socket.emit("call:reject", {
-          callId: data.callId,
-          conversationId: data.conversationId,
-        });
+        callsApi.answer(data.callId, "reject").catch(() => {});
         return;
       }
       sessionRef.current = {

@@ -1,6 +1,8 @@
 import { api, toFormData } from "@/lib/axios";
 import type {
   AuthResponse,
+  Call,
+  CallType,
   Comment,
   Conversation,
   LoginPayload,
@@ -75,8 +77,23 @@ export const usersApi = {
       .post<{ status: "accepted" | "pending" }>(`/users/${userId}/follow`)
       .then((res) => res.data),
 
+  /** Also cancels an outstanding follow *request* to a private account. */
   unfollow: (userId: string) =>
     api.delete<void>(`/users/${userId}/follow`).then((res) => res.data),
+
+  /** Incoming follow requests on the current (private) user's account. */
+  followRequests: () =>
+    api.get<UserSummary[]>("/users/me/follow-requests").then((res) => res.data),
+
+  acceptFollowRequest: (requesterId: string) =>
+    api
+      .post<void>(`/users/me/follow-requests/${requesterId}/accept`)
+      .then((res) => res.data),
+
+  rejectFollowRequest: (requesterId: string) =>
+    api
+      .post<void>(`/users/me/follow-requests/${requesterId}/reject`)
+      .then((res) => res.data),
 
   followers: (userId: string, page?: number) =>
     api
@@ -267,6 +284,23 @@ export const conversationsApi = {
     api
       .post<Message>(`/conversations/${conversationId}/messages`, payload)
       .then((res) => res.data),
+
+  /**
+   * Dedicated voice-note upload — distinct from the generic `sendMessage`
+   * (which expects an already-hosted `mediaUrl`). Note this lives under
+   * `/chats/:chatId/...`, not `/conversations/:id/...`; `chatId` is the
+   * same id as `conversationId` everywhere else in this file, just a
+   * different route prefix on the backend for the voice/call endpoints.
+   * mp3/m4a/ogg, 25MB max — enforced server-side.
+   */
+  sendVoiceMessage: (chatId: string, file: File, duration: number) =>
+    api
+      .post<Message>(
+        `/chats/${chatId}/messages/voice`,
+        toFormData({ file, duration }),
+        { headers: { "Content-Type": "multipart/form-data" } },
+      )
+      .then((res) => res.data),
 };
 
 export const messagesApi = {
@@ -276,6 +310,31 @@ export const messagesApi = {
 
   delete: (messageId: string) =>
     api.delete<void>(`/messages/${messageId}`).then((res) => res.data),
+};
+
+/** ------------------------------------------------------------------ */
+/** Calls (audio/video)                                                 */
+/** ------------------------------------------------------------------ */
+
+export const callsApi = {
+  /** Creates the call record; the backend notifies the other participant(s)
+   * over the "/chat" socket ("call:incoming") as a side effect. */
+  start: (chatId: string, type: CallType) =>
+    api.post<Call>(`/chats/${chatId}/calls`, { type }).then((res) => res.data),
+
+  history: (chatId: string, page = 1, limit = 20) =>
+    api
+      .get<PaginatedResponse<Call>>(`/chats/${chatId}/calls`, {
+        params: { page, limit },
+      })
+      .then((res) => res.data),
+
+  /** Accept or reject an incoming call. */
+  answer: (callId: string, action: "accept" | "reject") =>
+    api.post<Call>(`/calls/${callId}/answer`, { action }).then((res) => res.data),
+
+  end: (callId: string) =>
+    api.post<Call>(`/calls/${callId}/end`).then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
