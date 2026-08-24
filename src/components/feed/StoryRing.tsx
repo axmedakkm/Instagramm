@@ -22,10 +22,11 @@ export function StoryRing({
   return (
     <div
       className={cn(
-        "inline-flex shrink-0 rounded-full p-[2px]",
+        "inline-flex shrink-0 rounded-full p-[2px] transition-transform duration-200 ease-spring",
+        hasStory && "hover:scale-[1.04]",
         hasStory
           ? hasUnviewed
-            ? "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600"
+            ? "bg-[conic-gradient(from_180deg_at_50%_50%,#f9ce34_0deg,#ee2a7b_120deg,#6228d7_240deg,#f9ce34_360deg)]"
             : "bg-muted-foreground/30"
           : "bg-transparent",
         className,

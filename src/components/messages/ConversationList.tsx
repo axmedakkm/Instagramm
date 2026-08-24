@@ -37,13 +37,13 @@ export function ConversationList({ activeId }: { activeId?: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border px-4 py-4">
+      <div className="glass sticky top-0 z-10 flex items-center justify-between border-b border-border/60 px-4 py-4">
         <h1 className="text-lg font-semibold">{currentUser?.username}</h1>
         <button
           type="button"
           onClick={() => setComposeOpen(true)}
           aria-label="New message"
-          className="rounded-full p-1.5 transition-colors hover:bg-accent"
+          className="rounded-full p-1.5 transition-all duration-200 ease-smooth hover:bg-accent active:scale-90"
         >
           <SquarePen className="size-6" />
         </button>
@@ -87,10 +87,13 @@ export function ConversationList({ activeId }: { activeId?: string }) {
               key={conversation.id}
               href={`/messages/${conversation.id}`}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent",
+                "relative flex items-center gap-3 px-4 py-3 transition-colors duration-200 ease-smooth hover:bg-accent",
                 isActive && "bg-accent",
               )}
             >
+              {isActive && (
+                <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-[linear-gradient(180deg,#f9ce34,#ee2a7b,#6228d7)]" />
+              )}
               <UserAvatar user={other} size="lg" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
@@ -113,7 +116,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
                 </p>
               </div>
               {conversation.unreadCount > 0 && (
-                <span className="size-2 shrink-0 rounded-full bg-primary" />
+                <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-[linear-gradient(135deg,#ee2a7b,#6228d7)] shadow-[0_0_8px_rgba(238,42,123,0.6)]" />
               )}
             </Link>
           );

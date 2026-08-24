@@ -58,7 +58,7 @@ export default function NotificationsPage() {
         </p>
       )}
 
-      <div className="divide-y divide-border">
+      <div className="stagger divide-y divide-border" style={{ ["--stagger" as string]: "50ms" }}>
         {notifications.map((notification) => (
           <NotificationItem key={notification.id} notification={notification} />
         ))}

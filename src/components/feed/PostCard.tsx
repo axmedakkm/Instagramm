@@ -2,7 +2,10 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  BadgeCheck,
   Bookmark,
+  ChevronLeft,
+  ChevronRight,
   Heart,
   MessageCircle,
   MoreHorizontal,
@@ -13,7 +16,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CommentInput } from "@/components/feed/CommentInput";
+import { CommentSheet } from "@/components/feed/CommentSheet";
 import { SharePostModal } from "@/components/feed/SharePostModal";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { TimeAgo } from "@/components/shared/TimeAgo";
@@ -24,45 +27,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { patchPostInCaches } from "@/lib/postCache";
 import { cn } from "@/lib/utils";
 import { postsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSavedPostsStore } from "@/store/useSavedPostsStore";
-import type { PaginatedResponse, Post } from "@/types";
 
-/** Applies an optimistic patch to every feed-like paginated post query in
- * the cache so a like/save toggled anywhere is reflected everywhere. */
-function patchPostInCaches(
-  queryClient: ReturnType<typeof useQueryClient>,
-  postId: string,
-  patch: (post: Post) => Post,
-) {
-  const queryKeysToPatch = [queryKeys.posts.feed, queryKeys.posts.explore];
+import type { Post } from "@/types";
 
-  queryKeysToPatch.forEach((key) => {
-    queryClient.setQueriesData<{ pages: PaginatedResponse<Post>[] } | PaginatedResponse<Post>>(
-      { queryKey: key },
-      (old) => {
-        if (!old) return old;
-        const patchPage = (page: PaginatedResponse<Post>) => ({
-          ...page,
-          items: page.items.map((item) =>
-            item.id === postId ? patch(item) : item,
-          ),
-        });
-        if ("pages" in old) {
-          return { ...old, pages: old.pages.map(patchPage) };
-        }
-        return patchPage(old);
-      },
-    );
-  });
-
-  queryClient.setQueryData<Post>(queryKeys.posts.detail(postId), (old) =>
-    old ? patch(old) : old,
-  );
-}
+/** Captions longer than this get clamped behind a "more" toggle, so one
+ * essay-length post can't push the next card off the screen. */
+const CAPTION_CLAMP_LENGTH = 140;
 
 export function PostCard({ post }: { post: Post }) {
   const queryClient = useQueryClient();
@@ -72,10 +48,18 @@ export function PostCard({ post }: { post: Post }) {
   );
   const toggleSaved = useSavedPostsStore((state) => state.toggle);
   const [mediaIndex, setMediaIndex] = useState(0);
-  const [showCommentBox, setShowCommentBox] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  // Only the comment *button* should pop the keyboard; opening the sheet from
+  // "view all comments" is a read gesture.
+  const [focusComposer, setFocusComposer] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
+  // Drives the big centre-of-photo heart burst on double-tap. Bumping the key
+  // restarts the CSS animation even on rapid repeat taps.
+  const [burstKey, setBurstKey] = useState(0);
 
   const isOwner = currentUser?.id === post.author.id;
+  const isLongCaption = post.caption.length > CAPTION_CLAMP_LENGTH;
 
   const likeMutation = useMutation({
     mutationFn: () =>
@@ -126,28 +110,61 @@ export function PostCard({ post }: { post: Post }) {
   });
 
   const handleDoubleClickLike = () => {
+    // The burst plays on every double-tap; the like only fires if not already
+    // liked, matching Instagram's behaviour.
+    setBurstKey((k) => k + 1);
     if (!post.isLikedByMe) likeMutation.mutate();
   };
 
+  const openComments = (focus: boolean) => {
+    setFocusComposer(focus);
+    setCommentsOpen(true);
+  };
+
   return (
-    <article className="border-b border-border pb-4 sm:rounded-lg sm:border sm:mb-6">
-      <header className="flex items-center justify-between px-4 py-3">
+    <article className="group/card border-b border-border bg-card pb-3 sm:mb-7 sm:overflow-hidden sm:rounded-2xl sm:border sm:border-border/70 sm:shadow-soft sm:transition-all sm:duration-300 sm:ease-smooth sm:hover:-translate-y-0.5 sm:hover:shadow-lifted">
+      <header className="flex items-center justify-between px-3.5 py-3 sm:px-4">
         <Link
           href={`/${post.author.username}`}
-          className="flex items-center gap-3"
+          className="group/author flex min-w-0 items-center gap-3"
         >
-          <UserAvatar user={post.author} size="sm" />
-          <div className="leading-tight">
-            <span className="text-sm font-semibold">{post.author.username}</span>
+          {/* The gradient hairline reads as the story ring without pretending
+              there's an unseen story behind it. */}
+          <span className="rounded-full bg-[linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)] p-[1.5px] transition-transform duration-200 ease-spring group-hover/author:scale-105">
+            <UserAvatar
+              user={post.author}
+              size="md"
+              className="border-2 border-card"
+            />
+          </span>
+          <div className="min-w-0 leading-tight">
+            <span className="flex items-center gap-1">
+              <span className="truncate text-sm font-semibold transition-colors duration-200 group-hover/author:text-muted-foreground">
+                {post.author.username}
+              </span>
+              {post.author.isVerified && (
+                <BadgeCheck className="size-3.5 shrink-0 fill-primary text-card" />
+              )}
+              <span className="text-xs text-muted-foreground">·</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                <TimeAgo date={post.createdAt} />
+              </span>
+            </span>
             {post.location && (
-              <p className="text-xs text-muted-foreground">{post.location}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {post.location}
+              </p>
             )}
           </div>
         </Link>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-foreground"
+            >
               <MoreHorizontal className="size-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -169,7 +186,7 @@ export function PostCard({ post }: { post: Post }) {
       </header>
 
       <div
-        className="relative aspect-square w-full bg-muted"
+        className="group/media relative aspect-square w-full select-none overflow-hidden bg-muted"
         onDoubleClick={handleDoubleClickLike}
       >
         {post.mediaType === "video" ? (
@@ -188,43 +205,59 @@ export function PostCard({ post }: { post: Post }) {
               fill
               sizes="(max-width: 640px) 100vw, 470px"
               className={cn(
-                "object-cover transition-opacity",
-                index === mediaIndex ? "opacity-100" : "opacity-0 pointer-events-none absolute",
+                "object-cover transition-all duration-500 ease-smooth",
+                index === mediaIndex
+                  ? "scale-100 opacity-100"
+                  : "pointer-events-none absolute scale-105 opacity-0",
               )}
               preload={index === 0}
             />
           ))
         )}
 
+        {burstKey > 0 && (
+          <Heart
+            key={burstKey}
+            className="animate-heart-burst pointer-events-none absolute left-1/2 top-1/2 size-24 fill-white text-white drop-shadow-[0_2px_16px_rgba(0,0,0,0.35)]"
+          />
+        )}
+
         {post.mediaUrls.length > 1 && (
           <>
+            <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white backdrop-blur-sm">
+              {mediaIndex + 1}/{post.mediaUrls.length}
+            </span>
+
             {mediaIndex > 0 && (
               <button
                 type="button"
                 onClick={() => setMediaIndex((i) => i - 1)}
-                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-1 shadow"
+                className="glass absolute left-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full opacity-100 shadow-lifted transition-all duration-200 ease-smooth hover:scale-110 active:scale-95 focus-visible:opacity-100 sm:opacity-0 sm:group-hover/media:opacity-100"
                 aria-label="Previous photo"
               >
-                &#8592;
+                <ChevronLeft className="size-4" />
               </button>
             )}
             {mediaIndex < post.mediaUrls.length - 1 && (
               <button
                 type="button"
                 onClick={() => setMediaIndex((i) => i + 1)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-1 shadow"
+                className="glass absolute right-2 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full opacity-100 shadow-lifted transition-all duration-200 ease-smooth hover:scale-110 active:scale-95 focus-visible:opacity-100 sm:opacity-0 sm:group-hover/media:opacity-100"
                 aria-label="Next photo"
               >
-                &#8594;
+                <ChevronRight className="size-4" />
               </button>
             )}
-            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
+
+            <div className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1 rounded-full bg-black/35 px-2 py-1 backdrop-blur-sm">
               {post.mediaUrls.map((url, index) => (
                 <span
                   key={url}
                   className={cn(
-                    "size-1.5 rounded-full bg-background/70",
-                    index === mediaIndex && "bg-primary",
+                    "h-1.5 rounded-full transition-all duration-300 ease-smooth",
+                    index === mediaIndex
+                      ? "w-4 bg-white"
+                      : "w-1.5 bg-white/50",
                   )}
                 />
               ))}
@@ -233,31 +266,36 @@ export function PostCard({ post }: { post: Post }) {
         )}
       </div>
 
-      <div className="flex items-center justify-between px-4 pt-2">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between px-2.5 pt-1.5 sm:px-3">
+        <div className="flex items-center">
           <button
             type="button"
             onClick={() => likeMutation.mutate()}
             aria-label={post.isLikedByMe ? "Unlike" : "Like"}
+            className="grid size-10 place-items-center rounded-full transition-all duration-200 ease-spring hover:bg-accent hover:scale-110 active:scale-90"
           >
             <Heart
+              key={String(post.isLikedByMe)}
               className={cn(
-                "size-6 transition-transform active:scale-90",
-                post.isLikedByMe && "fill-destructive text-destructive",
+                "size-6 transition-colors duration-200",
+                post.isLikedByMe &&
+                  "animate-like-pop fill-destructive text-destructive",
               )}
             />
           </button>
           <button
             type="button"
-            onClick={() => setShowCommentBox((prev) => !prev)}
+            onClick={() => openComments(true)}
             aria-label="Comment"
+            className="grid size-10 place-items-center rounded-full transition-all duration-200 ease-spring hover:bg-accent hover:scale-110 active:scale-90"
           >
-            <MessageCircle className="size-6" />
+            <MessageCircle className="size-6 -scale-x-100" />
           </button>
           <button
             type="button"
             onClick={() => setShareOpen(true)}
             aria-label="Send in a message"
+            className="grid size-10 place-items-center rounded-full transition-all duration-200 ease-spring hover:bg-accent hover:scale-110 active:scale-90"
           >
             <Send className="size-6" />
           </button>
@@ -266,57 +304,69 @@ export function PostCard({ post }: { post: Post }) {
           type="button"
           onClick={handleToggleSave}
           aria-label={isSaved ? "Unsave" : "Save"}
+          className="grid size-10 place-items-center rounded-full transition-all duration-200 ease-spring hover:bg-accent hover:scale-110 active:scale-90"
         >
           <Bookmark
+            key={String(isSaved)}
             className={cn(
               "size-6",
-              isSaved && "fill-foreground text-foreground",
+              isSaved && "animate-like-pop fill-foreground text-foreground",
             )}
           />
         </button>
       </div>
 
-      <div className="space-y-1 px-4 pt-2">
-        <p className="text-sm font-semibold">
+      <div className="space-y-1.5 px-4 pt-1">
+        <p className="text-sm font-semibold tabular-nums">
           {post.likesCount.toLocaleString()}{" "}
           {post.likesCount === 1 ? "like" : "likes"}
         </p>
 
         {post.caption && (
-          <p className="text-sm">
+          <p className="text-sm leading-relaxed">
             <Link
               href={`/${post.author.username}`}
-              className="mr-1.5 font-semibold"
+              className="mr-1.5 font-semibold hover:text-muted-foreground"
             >
               {post.author.username}
             </Link>
-            {post.caption}
+            <span className="whitespace-pre-line">
+              {isLongCaption && !captionExpanded
+                ? `${post.caption.slice(0, CAPTION_CLAMP_LENGTH).trimEnd()}… `
+                : post.caption}
+            </span>
+            {isLongCaption && !captionExpanded && (
+              <button
+                type="button"
+                onClick={() => setCaptionExpanded(true)}
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                more
+              </button>
+            )}
           </p>
         )}
 
-        {post.commentsCount > 0 && (
-          <Link
-            href={`/p/${post.id}`}
-            className="block text-sm text-muted-foreground"
-          >
-            View all {post.commentsCount} comments
-          </Link>
-        )}
-
-        <p className="text-[11px] uppercase text-muted-foreground">
-          <TimeAgo date={post.createdAt} /> ago
-        </p>
+        <button
+          type="button"
+          onClick={() => openComments(false)}
+          className="block text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {post.commentsCount > 0
+            ? `View all ${post.commentsCount.toLocaleString()} ${
+                post.commentsCount === 1 ? "comment" : "comments"
+              }`
+            : "Add a comment..."}
+        </button>
       </div>
 
-      {showCommentBox && (
-        <div className="mt-2">
-          <CommentInput
-            postId={post.id}
-            autoFocus
-            onPosted={() => setShowCommentBox(false)}
-          />
-        </div>
-      )}
+      <CommentSheet
+        postId={post.id}
+        commentsCount={post.commentsCount}
+        open={commentsOpen}
+        onOpenChange={setCommentsOpen}
+        autoFocusInput={focusComposer}
+      />
 
       <SharePostModal
         postId={post.id}

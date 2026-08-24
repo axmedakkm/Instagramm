@@ -83,7 +83,7 @@ export default function FeedPage() {
           </p>
         )}
 
-        <div className="pt-4">
+        <div className="stagger pt-4" style={{ ["--stagger" as string]: "90ms" }}>
           {posts.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
