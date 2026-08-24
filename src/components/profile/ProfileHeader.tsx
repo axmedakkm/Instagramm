@@ -32,7 +32,11 @@ export function ProfileHeader({ profile }: { profile: User }) {
 
   return (
     <header className="flex flex-col gap-6 px-4 py-8 sm:flex-row sm:items-center sm:gap-10">
-      <UserAvatar user={profile} size="xl" className="size-24 sm:size-36" />
+      <div className="mx-auto shrink-0 rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,#f9ce34_0deg,#ee2a7b_120deg,#6228d7_240deg,#f9ce34_360deg)] p-[3px] shadow-lifted transition-transform duration-300 ease-spring hover:scale-[1.03] sm:mx-0">
+        <div className="rounded-full bg-background p-[3px]">
+          <UserAvatar user={profile} size="xl" className="size-24 sm:size-36" />
+        </div>
+      </div>
 
       <div className="flex-1 space-y-4">
         <div className="flex flex-wrap items-center gap-3">

@@ -71,19 +71,19 @@ export function ProfileGrid({ userId }: { userId: string }) {
           <Link
             key={post.id}
             href={`/p/${post.id}`}
-            className="group relative aspect-square overflow-hidden bg-muted"
+            className="group relative aspect-square overflow-hidden rounded-sm bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <Image
               src={post.mediaUrls[0] ?? ""}
               alt={post.caption || "Post"}
               fill
               sizes="(max-width: 768px) 33vw, 300px"
-              className="object-cover"
+              className="object-cover transition-transform duration-500 ease-smooth group-hover:scale-[1.06]"
             />
             {post.mediaUrls.length > 1 && (
               <Layers className="absolute right-2 top-2 size-4 text-white drop-shadow" />
             )}
-            <div className="absolute inset-0 hidden items-center justify-center gap-6 bg-black/40 text-white group-hover:flex">
+            <div className="absolute inset-0 flex items-center justify-center gap-6 bg-black/50 text-white opacity-0 transition-opacity duration-200 ease-smooth group-hover:opacity-100 group-focus-visible:opacity-100">
               <span className="flex items-center gap-1.5 font-semibold">
                 <Heart className="size-5 fill-white" />
                 {post.likesCount.toLocaleString()}

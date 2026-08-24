@@ -61,16 +61,24 @@ export default function RegisterPage() {
 
   return (
     <div className="w-full max-w-sm space-y-4">
-      <div className="rounded-lg border border-border bg-background px-10 py-12">
+      <div className="brand-glow enter-pop glass rounded-2xl border border-border/60 px-10 py-12 shadow-float">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <Camera className="size-10" />
-          <h1 className="text-2xl font-semibold">Instagramm</h1>
+          <span className="brand-glow grid size-16 place-items-center rounded-2xl bg-background/60 shadow-lifted">
+            <Camera className="size-8" strokeWidth={1.75} />
+          </span>
+          <h1 className="brand-gradient text-4xl font-bold tracking-tight">
+            Instagramm
+          </h1>
           <p className="text-sm text-muted-foreground">
             Sign up to see photos and videos from your friends.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="stagger space-y-3"
+          style={{ ["--stagger" as string]: "60ms" }}
+        >
           <div className="space-y-1.5">
             <Label htmlFor="fullName" className="sr-only">
               Full name
@@ -143,14 +151,20 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            variant="gradient"
+            size="lg"
+            className="w-full"
+            disabled={isSubmitting}
+          >
             {isSubmitting && <Loader2 className="size-4 animate-spin" />}
             Sign up
           </Button>
         </form>
       </div>
 
-      <div className="rounded-lg border border-border bg-background px-10 py-5 text-center text-sm">
+      <div className="enter-up glass rounded-2xl border border-border/60 px-10 py-5 text-center text-sm shadow-lifted [animation-delay:200ms]">
         Have an account?{" "}
         <Link href="/login" className="font-semibold text-primary">
           Log in

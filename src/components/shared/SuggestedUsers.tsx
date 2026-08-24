@@ -41,8 +41,11 @@ export function SuggestedUsers({ limit = 5 }: { limit?: number }) {
   return (
     <ul className="space-y-3">
       {suggestions.map((user) => (
-        <li key={user.id} className="flex items-center gap-3">
-          <Link href={`/${user.username}`}>
+        <li
+          key={user.id}
+          className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5 transition-colors duration-200 ease-smooth hover:bg-accent"
+        >
+          <Link href={`/${user.username}`} className="transition-transform duration-200 ease-spring hover:scale-105">
             <UserAvatar user={user} size="sm" />
           </Link>
           <div className="min-w-0 flex-1">
