@@ -18,9 +18,11 @@ const nextConfig: NextConfig = {
         hostname: "**",
       },
       {
+        // The backend stores media as absolute http:// URLs (e.g. the
+        // Render deployment at instagram-back-jsr6.onrender.com), so allow
+        // any http host too rather than hardcoding a single one.
         protocol: "http",
-        hostname: "instagram-back-jsr6.onrender.com",
-        pathname: "/**",
+        hostname: "**",
       },
     ],
   },
