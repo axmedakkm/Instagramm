@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Loader2, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { FollowListModal } from "@/components/profile/FollowListModal";
@@ -31,6 +32,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
   const startConversation = useMutation({
     mutationFn: () => conversationsApi.getOrCreateWithUser(profile.id),
     onSuccess: (conversation) => router.push(`/messages/${conversation.id}`),
+    onError: () => toast.error("Couldn't start that conversation."),
   });
 
   return (
