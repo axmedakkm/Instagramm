@@ -26,6 +26,8 @@ interface CallContextValue {
   remoteStream: MediaStream | null;
   isMuted: boolean;
   isCameraOff: boolean;
+  /** Seconds since the call connected — 0 until `status` is "in-call". */
+  callDuration: number;
   startCall: (
     conversationId: string,
     callType: CallType,
@@ -58,6 +60,26 @@ interface Session {
   callType: CallType;
 }
 
+/** Turns a `getUserMedia` rejection into a message that tells the user what
+ * actually went wrong instead of a generic failure. */
+function describeMediaError(error: unknown, type: CallType): string {
+  if (error instanceof DOMException) {
+    if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+      return type === "video"
+        ? "Camera and microphone access was denied. Allow them in your browser settings to make a video call."
+        : "Microphone access was denied. Allow it in your browser settings to make a call.";
+    }
+    if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+      return type === "video"
+        ? "No camera or microphone was found on this device."
+        : "No microphone was found on this device.";
+    }
+  }
+  return type === "video"
+    ? "Couldn't access your camera/microphone."
+    : "Couldn't access your microphone.";
+}
+
 /**
  * Owns 1:1 WebRTC audio/video calls. Call lifecycle (start/answer/end) goes
  * through the REST `/chats/:chatId/calls` + `/calls/:callId/{answer,end}`
@@ -78,6 +100,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
 
   const sessionRef = useRef<Session | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -92,14 +115,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   );
 
   const cleanup = useCallback(() => {
-    pcRef.current?.getSenders().forEach((sender) => {
-      try {
-        sender.track?.stop();
-      } catch {
-        /* noop */
-      }
-    });
-    pcRef.current?.close();
+    const pc = pcRef.current;
+    if (pc) {
+      // Detach every handler before closing so a late-firing event (e.g.
+      // `onconnectionstatechange` reacting to our own `close()` call below)
+      // can't re-enter this teardown or touch state after we've moved on.
+      pc.onicecandidate = null;
+      pc.ontrack = null;
+      pc.onconnectionstatechange = null;
+      pc.getSenders().forEach((sender) => {
+        try {
+          sender.track?.stop();
+        } catch {
+          /* noop */
+        }
+      });
+      pc.close();
+    }
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
@@ -112,6 +144,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setPeer(null);
     setIsMuted(false);
     setIsCameraOff(false);
+    setCallDuration(0);
   }, []);
 
   const getMedia = useCallback(async (type: CallType) => {
@@ -148,17 +181,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
           setStatus("in-call");
-        } else if (
+          return;
+        }
+        if (
           pc.connectionState === "failed" ||
           pc.connectionState === "disconnected" ||
           pc.connectionState === "closed"
         ) {
           const session = sessionRef.current;
-          if (session) {
-            callsApi.end(session.callId).catch(() => {
-              /* best-effort — the peer connection is already torn down */
-            });
+          if (!session) return; // already torn down by our own cleanup()
+          if (pc.connectionState === "failed") {
+            toast.error("Call connection failed.");
           }
+          callsApi.end(session.callId).catch(() => {
+            /* best-effort — the peer connection is already torn down */
+          });
           cleanup();
         }
       };
@@ -191,12 +228,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       if (sessionRef.current) return; // already in a call
 
-      try {
-        setCallType(type);
-        setPeer(targetPeer);
-        setStatus("calling");
-        const stream = await getMedia(type);
+      setCallType(type);
+      setPeer(targetPeer);
+      setStatus("calling");
 
+      let stream: MediaStream;
+      try {
+        stream = await getMedia(type);
+      } catch (error) {
+        toast.error(describeMediaError(error, type));
+        cleanup();
+        return;
+      }
+
+      try {
         const call = await callsApi.start(conversationId, type);
         sessionRef.current = {
           callId: call.id,
@@ -210,7 +255,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           isAxiosError(error)
             ? ((error.response?.data as { message?: string })?.message ??
                 "Couldn't start the call.")
-            : "Couldn't access your camera/microphone.",
+            : "Couldn't start the call.",
         );
         cleanup();
       }
@@ -221,14 +266,24 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const acceptCall = useCallback(async () => {
     const session = sessionRef.current;
     if (!session || session.role !== "callee") return;
+    setStatus("connecting");
+
+    let stream: MediaStream;
     try {
-      setStatus("connecting");
-      const stream = await getMedia(session.callType);
+      stream = await getMedia(session.callType);
+    } catch (error) {
+      toast.error(describeMediaError(error, session.callType));
+      callsApi.answer(session.callId, "reject").catch(() => {});
+      cleanup();
+      return;
+    }
+
+    try {
       createPeerConnection(stream);
       await callsApi.answer(session.callId, "accept");
       // The caller creates the offer once it hears call:accepted.
     } catch {
-      toast.error("Couldn't access your camera/microphone.");
+      toast.error("Couldn't accept the call.");
       callsApi.answer(session.callId, "reject").catch(() => {});
       cleanup();
     }
@@ -377,6 +432,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!socket && sessionRef.current) cleanup();
   }, [socket, cleanup]);
 
+  // Live call-duration counter, ticking once a second while connected.
+  // `cleanup()` already resets `callDuration` to 0 on every path that leaves
+  // "in-call", so this effect only needs to own starting/stopping the timer.
+  useEffect(() => {
+    if (status !== "in-call") return;
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      setCallDuration(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status]);
+
   return (
     <CallContext.Provider
       value={{
@@ -387,6 +454,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         remoteStream,
         isMuted,
         isCameraOff,
+        callDuration,
         startCall,
         acceptCall,
         rejectCall,
