@@ -5,17 +5,12 @@ import { Loader2, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
-import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { conversationsApi } from "@/services/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { User } from "@/types";
@@ -45,19 +40,15 @@ export function ProfileHeader({ profile }: { profile: User }) {
           {profile.isVerified && <Badge variant="secondary">Verified</Badge>}
           {profile.isPrivate && <Badge variant="outline">Private</Badge>}
           {isOwner && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Open menu"
-                  className="size-8"
-                >
-                  <Menu className="size-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <AccountMenuContent />
-            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Settings"
+              className="size-8"
+              onClick={() => router.push("/settings")}
+            >
+              <Menu className="size-5" />
+            </Button>
           )}
         </div>
 
