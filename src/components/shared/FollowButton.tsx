@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useFollowStore } from "@/store/useFollowStore";
 import type { User } from "@/types";
 
 export function FollowButton({
@@ -19,54 +20,62 @@ export function FollowButton({
   const queryClient = useQueryClient();
   const currentUserId = useAuthStore((state) => state.user?.id);
 
+  const followedIds = useFollowStore((state) => state.followedIds);
+  const requestedIds = useFollowStore((state) => state.requestedIds);
+  const markFollowed = useFollowStore((state) => state.follow);
+  const markUnfollowed = useFollowStore((state) => state.unfollow);
+  const markRequested = useFollowStore((state) => state.request);
+  const unmarkRequested = useFollowStore((state) => state.unrequest);
+
+  const isFollowing = user.isFollowedByMe || followedIds.includes(user.id);
+  const isRequested = !isFollowing && requestedIds.includes(user.id);
+
+  /** Optimistically nudge the profile header's follower count. */
+  const adjustFollowerCount = (delta: number, following: boolean) => {
+    queryClient.setQueryData<User>(
+      queryKeys.users.detail(user.username),
+      (old) =>
+        old
+          ? {
+              ...old,
+              isFollowedByMe: following,
+              followersCount: Math.max(0, old.followersCount + delta),
+            }
+          : old,
+    );
+  };
+
   const mutation = useMutation({
     mutationFn: async () => {
-      if (user.isFollowedByMe) {
+      if (isFollowing || isRequested) {
         await usersApi.unfollow(user.id);
+        return { action: "removed" as const };
+      }
+      const { status } = await usersApi.follow(user.id);
+      return {
+        action: status === "pending" ? ("requested" as const) : ("followed" as const),
+      };
+    },
+    onSuccess: (result) => {
+      if (result.action === "removed") {
+        const wasFollowing = isFollowing;
+        markUnfollowed(user.id);
+        unmarkRequested(user.id);
+        if (wasFollowing) adjustFollowerCount(-1, false);
+      } else if (result.action === "followed") {
+        markFollowed(user.id);
+        adjustFollowerCount(1, true);
       } else {
-        await usersApi.follow(user.id);
+        // Pending request to a private account — no new follower yet.
+        markRequested(user.id);
       }
     },
-    onMutate: async () => {
-      await queryClient.cancelQueries({
-        queryKey: queryKeys.users.detail(user.username),
-      });
-      const previous = queryClient.getQueryData<User>(
-        queryKeys.users.detail(user.username),
-      );
-
-      queryClient.setQueryData<User>(
-        queryKeys.users.detail(user.username),
-        (old) =>
-          old
-            ? {
-                ...old,
-                isFollowedByMe: !old.isFollowedByMe,
-                followersCount: old.isFollowedByMe
-                  ? old.followersCount - 1
-                  : old.followersCount + 1,
-              }
-            : old,
-      );
-
-      return { previous };
-    },
-    onError: (_error, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(
-          queryKeys.users.detail(user.username),
-          context.previous,
-        );
-      }
-      toast.error("Something went wrong. Please try again.");
-    },
+    onError: () => toast.error("Something went wrong. Please try again."),
     onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: queryKeys.users.detail(user.username),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.suggestions });
-      // Keep any open followers/following modals in sync: the target's
-      // follower list changed, and so did the current user's following list.
       queryClient.invalidateQueries({
         queryKey: queryKeys.users.followers(user.id),
       });
@@ -78,15 +87,17 @@ export function FollowButton({
     },
   });
 
+  const label = isFollowing ? "Following" : isRequested ? "Requested" : "Follow";
+
   return (
     <Button
       size="sm"
-      variant={user.isFollowedByMe ? "secondary" : "default"}
+      variant={isFollowing || isRequested ? "secondary" : "default"}
       className={cn("min-w-24", className)}
       disabled={mutation.isPending}
       onClick={() => mutation.mutate()}
     >
-      {user.isFollowedByMe ? "Following" : "Follow"}
+      {label}
     </Button>
   );
 }

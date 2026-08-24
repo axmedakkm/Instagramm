@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
@@ -40,7 +39,6 @@ export function EditProfileModal({
   const [fullName, setFullName] = useState(user.fullName);
   const [bio, setBio] = useState(user.bio);
   const [website, setWebsite] = useState(user.website);
-  const [isPrivate, setIsPrivate] = useState(user.isPrivate);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
@@ -49,7 +47,7 @@ export function EditProfileModal({
       if (avatarFile) {
         await usersApi.updateAvatar(avatarFile);
       }
-      return usersApi.updateProfile({ fullName, bio, website, isPrivate });
+      return usersApi.updateProfile({ fullName, bio, website });
     },
     onSuccess: (updated) => {
       setUser(updated);
@@ -139,20 +137,6 @@ export function EditProfileModal({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Label htmlFor="isPrivate">Private account</Label>
-              <p className="text-xs text-muted-foreground">
-                Only approved followers can see your posts.
-              </p>
-            </div>
-            <Switch
-              id="isPrivate"
-              checked={isPrivate}
-              onCheckedChange={setIsPrivate}
-              aria-label="Toggle private account"
-            />
-          </div>
         </div>
 
         <DialogFooter>

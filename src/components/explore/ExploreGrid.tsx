@@ -76,7 +76,8 @@ export function ExploreGrid() {
             className="group relative aspect-square overflow-hidden bg-muted"
           >
             <Image
-              src={post.mediaUrls[0] ?? ""}
+
+src={post.mediaUrls[0] ?? ""}
               alt={post.caption || "Explore post"}
               fill
               sizes="(max-width: 768px) 33vw, 300px"
