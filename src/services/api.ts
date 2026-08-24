@@ -287,16 +287,17 @@ export const conversationsApi = {
 
   /**
    * Dedicated voice-note upload — distinct from the generic `sendMessage`
-   * (which expects an already-hosted `mediaUrl`). Note this lives under
-   * `/chats/:chatId/...`, not `/conversations/:id/...`; `chatId` is the
-   * same id as `conversationId` everywhere else in this file, just a
-   * different route prefix on the backend for the voice/call endpoints.
-   * mp3/m4a/ogg, 25MB max — enforced server-side.
+   * (which expects an already-hosted `mediaUrl`). Unlike the call endpoints,
+   * there is no `/chats/:chatId/...` alias for this one — the only route the
+   * backend exposes is `POST /conversations/:conversationId/voice`.
+   * The recording goes in the `file` field; audio only, 50MB max — both
+   * enforced server-side. `duration` is sent along but the backend does not
+   * persist it, so it never comes back on the returned `Message`.
    */
-  sendVoiceMessage: (chatId: string, file: File, duration: number) =>
+  sendVoiceMessage: (conversationId: string, file: File, duration: number) =>
     api
       .post<Message>(
-        `/chats/${chatId}/messages/voice`,
+        `/conversations/${conversationId}/voice`,
         toFormData({ file, duration }),
         { headers: { "Content-Type": "multipart/form-data" } },
       )

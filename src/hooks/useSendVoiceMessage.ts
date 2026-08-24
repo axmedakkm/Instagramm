@@ -7,7 +7,7 @@ import type { Message } from "@/types";
 
 /**
  * Uploads a recorded voice note via the dedicated
- * `POST /chats/:chatId/messages/voice` endpoint (mp3/m4a/ogg, 25MB max).
+ * `POST /conversations/:conversationId/voice` endpoint (audio only, 50MB max).
  * REST-only — there's no socket fast path for binary uploads, unlike
  * `useSendMessage`.
  */
