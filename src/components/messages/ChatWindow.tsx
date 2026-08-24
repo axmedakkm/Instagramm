@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Image as ImageIcon, Phone, Video } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
+import { useCall } from "@/components/providers/CallProvider";
 import { MessageInput } from "@/components/messages/MessageInput";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -23,6 +24,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const markedReadRef = useRef<Set<string>>(new Set());
   const { socket, isConnected } = useSocket();
+  const { startCall } = useCall();
 
   // There's no `GET /conversations/:id` — the conversations list query
   // already carries every participant's info, so we read it from there
@@ -110,6 +112,27 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
               <p className="text-xs text-muted-foreground">
                 {isConnected ? "Active now" : "Connecting..."}
               </p>
+            </div>
+
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Start a voice call"
+                onClick={() => startCall(conversationId, "audio", other)}
+                className="rounded-full p-2 transition-colors hover:bg-accent disabled:opacity-50"
+                disabled={!isConnected}
+              >
+                <Phone className="size-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Start a video call"
+                onClick={() => startCall(conversationId, "video", other)}
+                className="rounded-full p-2 transition-colors hover:bg-accent disabled:opacity-50"
+                disabled={!isConnected}
+              >
+                <Video className="size-5" />
+              </button>
             </div>
           </>
         )}
