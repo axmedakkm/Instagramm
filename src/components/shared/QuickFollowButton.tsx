@@ -43,6 +43,7 @@ export function QuickFollowButton({
       disabled={mutation.isPending}
       onClick={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         mutation.mutate();
       }}
     >

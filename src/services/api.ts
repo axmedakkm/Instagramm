@@ -75,8 +75,23 @@ export const usersApi = {
       .post<{ status: "accepted" | "pending" }>(`/users/${userId}/follow`)
       .then((res) => res.data),
 
+  /** Also cancels an outstanding follow *request* to a private account. */
   unfollow: (userId: string) =>
     api.delete<void>(`/users/${userId}/follow`).then((res) => res.data),
+
+  /** Incoming follow requests on the current (private) user's account. */
+  followRequests: () =>
+    api.get<UserSummary[]>("/users/me/follow-requests").then((res) => res.data),
+
+  acceptFollowRequest: (requesterId: string) =>
+    api
+      .post<void>(`/users/me/follow-requests/${requesterId}/accept`)
+      .then((res) => res.data),
+
+  rejectFollowRequest: (requesterId: string) =>
+    api
+      .post<void>(`/users/me/follow-requests/${requesterId}/reject`)
+      .then((res) => res.data),
 
   followers: (userId: string, page?: number) =>
     api
