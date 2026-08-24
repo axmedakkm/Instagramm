@@ -1,8 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { SquarePen } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { NewMessageModal } from "@/components/messages/NewMessageModal";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +25,7 @@ function otherParticipant(conversation: Conversation, currentUserId?: string) {
 export function ConversationList({ activeId }: { activeId?: string }) {
   const pathname = usePathname();
   const currentUser = useAuthStore((state) => state.user);
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.conversations.list,
@@ -33,8 +37,16 @@ export function ConversationList({ activeId }: { activeId?: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border px-4 py-4">
+      <div className="flex items-center justify-between border-b border-border px-4 py-4">
         <h1 className="text-lg font-semibold">{currentUser?.username}</h1>
+        <button
+          type="button"
+          onClick={() => setComposeOpen(true)}
+          aria-label="New message"
+          className="rounded-full p-1.5 transition-colors hover:bg-accent"
+        >
+          <SquarePen className="size-6" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -50,9 +62,18 @@ export function ConversationList({ activeId }: { activeId?: string }) {
           ))}
 
         {!isLoading && conversations.length === 0 && (
-          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            No conversations yet.
-          </p>
+          <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              No conversations yet.
+            </p>
+            <button
+              type="button"
+              onClick={() => setComposeOpen(true)}
+              className="text-sm font-semibold text-primary hover:underline"
+            >
+              Send a message
+            </button>
+          </div>
         )}
 
         {conversations.map((conversation) => {
@@ -98,6 +119,8 @@ export function ConversationList({ activeId }: { activeId?: string }) {
           );
         })}
       </div>
+
+      <NewMessageModal open={composeOpen} onOpenChange={setComposeOpen} />
     </div>
   );
 }

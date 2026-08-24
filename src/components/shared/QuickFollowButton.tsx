@@ -1,16 +1,15 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { usersApi } from "@/services/api";
+import { useFollowStore } from "@/store/useFollowStore";
 
 /**
- * A fire-and-forget follow button for contexts where the backend's "short"
- * user shape doesn't carry `isFollowedByMe` (notification actors, follower/
- * following lists of someone else's profile) — so there's no server truth
- * to toggle optimistically like the full `FollowButton` does. Local state
- * stands in once clicked.
+ * A follow toggle for contexts where the backend's "short" user shape doesn't
+ * carry `isFollowedByMe` (notification actors, follower/following lists of
+ * someone else's profile). The followed state is persisted client-side so the
+ * button stays on "Unfollow" across refreshes until the user unfollows.
  */
 export function QuickFollowButton({
   userId,
@@ -19,25 +18,35 @@ export function QuickFollowButton({
   userId: string;
   className?: string;
 }) {
-  const [justFollowed, setJustFollowed] = useState(false);
+  const isFollowing = useFollowStore((state) =>
+    state.followedIds.includes(userId),
+  );
+  const follow = useFollowStore((state) => state.follow);
+  const unfollow = useFollowStore((state) => state.unfollow);
 
   const mutation = useMutation({
-    mutationFn: () => usersApi.follow(userId),
-    onSuccess: () => setJustFollowed(true),
+    mutationFn: async () => {
+      if (isFollowing) await usersApi.unfollow(userId);
+      else await usersApi.follow(userId);
+    },
+    onSuccess: () => {
+      if (isFollowing) unfollow(userId);
+      else follow(userId);
+    },
   });
 
   return (
     <Button
       size="sm"
-      variant={justFollowed ? "secondary" : "default"}
+      variant={isFollowing ? "outline" : "default"}
       className={className}
-      disabled={justFollowed || mutation.isPending}
+      disabled={mutation.isPending}
       onClick={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}
     >
-      {justFollowed ? "Following" : "Follow"}
+      {isFollowing ? "Unfollow" : "Follow"}
     </Button>
   );
 }

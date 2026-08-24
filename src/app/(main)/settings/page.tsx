@@ -9,7 +9,8 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useState } from "react";
+import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +19,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 export default function SettingsPage() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const [editOpen, setEditOpen] = useState(false);
   const logout = useAuthStore((state) => state.logout);
 
   return (
@@ -52,7 +54,7 @@ export default function SettingsPage() {
       <nav className="flex flex-col p-2">
         <button
           type="button"
-          onClick={() => toast.info("Profile editing is coming soon.")}
+          onClick={() => setEditOpen(true)}
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <UserIcon className="size-5" />
@@ -93,6 +95,14 @@ export default function SettingsPage() {
           Log out
         </button>
       </nav>
+
+      {user && (
+        <EditProfileModal
+          user={user}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
     </div>
   );
 }
