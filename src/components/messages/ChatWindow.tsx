@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Image as ImageIcon, Phone, Video } from "lucide-react";
+import { ArrowLeft, History, Image as ImageIcon, Phone, Video } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCall } from "@/components/providers/CallProvider";
+import { CallHistoryModal } from "@/components/messages/CallHistoryModal";
 import { MessageInput } from "@/components/messages/MessageInput";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -25,6 +26,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
   const markedReadRef = useRef<Set<string>>(new Set());
   const { socket, isConnected } = useSocket();
   const { startCall } = useCall();
+  const [isCallHistoryOpen, setIsCallHistoryOpen] = useState(false);
 
   // There's no `GET /conversations/:id` — the conversations list query
   // already carries every participant's info, so we read it from there
@@ -117,6 +119,14 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
             <div className="ml-auto flex items-center gap-1">
               <button
                 type="button"
+                aria-label="Call history"
+                onClick={() => setIsCallHistoryOpen(true)}
+                className="rounded-full p-2 transition-colors hover:bg-accent"
+              >
+                <History className="size-5" />
+              </button>
+              <button
+                type="button"
                 aria-label="Start a voice call"
                 onClick={() => startCall(conversationId, "audio", other)}
                 className="rounded-full p-2 transition-colors hover:bg-accent disabled:opacity-50"
@@ -137,6 +147,12 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
           </>
         )}
       </header>
+
+      <CallHistoryModal
+        chatId={conversationId}
+        open={isCallHistoryOpen}
+        onOpenChange={setIsCallHistoryOpen}
+      />
 
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
         {messages.map((message) => {

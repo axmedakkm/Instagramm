@@ -124,6 +124,33 @@ export interface Message {
   createdAt: string;
 }
 
+export type CallType = "audio" | "video";
+
+export type CallStatus =
+  | "ringing"
+  | "ongoing"
+  | "accepted"
+  | "rejected"
+  | "missed"
+  | "ended";
+
+/** A call record as returned by `/chats/:chatId/calls` (start + history) and
+ * `/calls/:callId/answer` / `/calls/:callId/end`. */
+export interface Call {
+  id: string;
+  chatId: string;
+  type: CallType;
+  status: CallStatus;
+  caller: UserSummary;
+  /** Only present on the history list, where the other participant(s) are
+   * included alongside the caller. */
+  participants?: UserSummary[];
+  startedAt: string;
+  endedAt: string | null;
+  /** Seconds — null while the call hasn't ended yet. */
+  duration: number | null;
+}
+
 export type NotificationType =
   | "like_post"
   | "like_comment"
