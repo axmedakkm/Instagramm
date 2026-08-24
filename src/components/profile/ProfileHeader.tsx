@@ -44,47 +44,33 @@ export function ProfileHeader({ profile }: { profile: User }) {
           <h1 className="text-xl">{profile.username}</h1>
           {profile.isVerified && <Badge variant="secondary">Verified</Badge>}
           {profile.isPrivate && <Badge variant="outline">Private</Badge>}
-
-          {isOwner ? (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setEditOpen(true)}
-              >
-                Edit profile
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Open menu"
-                    className="size-8"
-                  >
-                    <Menu className="size-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <AccountMenuContent />
-              </DropdownMenu>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <FollowButton user={profile} />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => startConversation.mutate()}
-                disabled={startConversation.isPending}
-              >
-                {startConversation.isPending && (
-                  <Loader2 className="size-4 animate-spin" />
-                )}
-                Message
-              </Button>
-            </div>
-          )}
         </div>
+
+        {isOwner && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 sm:flex-none"
+              onClick={() => setEditOpen(true)}
+            >
+              Edit profile
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open menu"
+                  className="size-8"
+                >
+                  <Menu className="size-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <AccountMenuContent />
+            </DropdownMenu>
+          </div>
+        )}
 
         <div className="flex gap-8 text-sm">
           <p>
@@ -114,6 +100,24 @@ export function ProfileHeader({ profile }: { profile: User }) {
             </a>
           )}
         </div>
+
+        {!isOwner && (
+          <div className="flex flex-wrap items-center gap-2">
+            <FollowButton user={profile} className="flex-1 sm:flex-none" />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 sm:flex-none"
+              onClick={() => startConversation.mutate()}
+              disabled={startConversation.isPending}
+            >
+              {startConversation.isPending && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              Message
+            </Button>
+          </div>
+        )}
       </div>
 
       {openList && (
