@@ -284,6 +284,7 @@ export const conversationsApi = {
     api
       .post<Message>(`/conversations/${conversationId}/messages`, payload)
       .then((res) => res.data),
+<<<<<<< HEAD
 
   /**
    * Dedicated voice-note upload — distinct from the generic `sendMessage`
@@ -302,6 +303,8 @@ export const conversationsApi = {
         { headers: { "Content-Type": "multipart/form-data" } },
       )
       .then((res) => res.data),
+=======
+>>>>>>> 46f387a99efa59e57542b8ee59897bbcef00dc9d
 };
 
 export const messagesApi = {
@@ -322,13 +325,6 @@ export const callsApi = {
    * over the "/chat" socket ("call:incoming") as a side effect. */
   start: (chatId: string, type: CallType) =>
     api.post<Call>(`/chats/${chatId}/calls`, { type }).then((res) => res.data),
-
-  history: (chatId: string, page = 1, limit = 20) =>
-    api
-      .get<PaginatedResponse<Call>>(`/chats/${chatId}/calls`, {
-        params: { page, limit },
-      })
-      .then((res) => res.data),
 
   /** Accept or reject an incoming call. */
   answer: (callId: string, action: "accept" | "reject") =>

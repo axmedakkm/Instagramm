@@ -12,6 +12,11 @@ import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 export function MessageInput({ conversationId }: { conversationId: string }) {
   const [text, setText] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  /** Recorded-but-not-sent-yet voice note, held for preview/playback before
+   * the user commits to sending it (or discards it). */
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const { send, isSending } = useSendMessage(conversationId);
   const { sendVoice, isSending: isSendingVoice } =
     useSendVoiceMessage(conversationId);
@@ -28,6 +33,14 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
       timerRef.current = null;
     };
   }, [isRecording]);
+
+  // Revoke the object URL whenever it's replaced or the component unmounts,
+  // so we don't leak blob URLs.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -46,16 +59,30 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
       setElapsedSeconds(0);
       await start();
     } catch {
-      toast.error("Couldn't access your microphone.");
+      toast.error(
+        "Microphone access was denied. Allow it in your browser settings to record a voice message.",
+      );
     }
   };
 
   const handleStopRecording = async () => {
-    const duration = elapsedSeconds;
     const file = await stop();
     if (!file) return;
+    setPreviewFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const discardPreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewFile(null);
+    setPreviewUrl(null);
+  };
+
+  const handleSendPreview = async () => {
+    if (!previewFile) return;
     try {
-      await sendVoice({ file, duration });
+      await sendVoice(previewFile);
+      discardPreview();
     } catch {
       toast.error("Voice message failed to send.");
     }
@@ -84,6 +111,34 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
           size="icon"
           variant="ghost"
           onClick={handleStopRecording}
+          aria-label="Stop recording"
+        >
+          <Send className="size-5" />
+        </Button>
+      </div>
+    );
+  }
+
+  // Recorded, not sent yet — preview with native play/pause + progress/
+  // duration (the same `<audio controls>` element already used to play
+  // back sent voice messages in `ChatWindow`).
+  if (previewFile && previewUrl) {
+    return (
+      <div className="flex items-center gap-2 border-t border-border p-3">
+        <button
+          type="button"
+          onClick={discardPreview}
+          aria-label="Discard recording"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full text-destructive transition-colors hover:bg-accent"
+        >
+          <Trash2 className="size-5" />
+        </button>
+        <audio src={previewUrl} controls className="h-9 flex-1" />
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={handleSendPreview}
           disabled={isSendingVoice}
           aria-label="Send voice message"
         >
@@ -120,7 +175,6 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
           size="icon"
           variant="ghost"
           onClick={handleStartRecording}
-          disabled={isSendingVoice}
           aria-label="Record a voice message"
         >
           <Mic className="size-5" />

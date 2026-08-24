@@ -1,22 +1,29 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { conversationsApi } from "@/services/api";
+import { conversationsApi, mediaApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import type { Message } from "@/types";
 
+<<<<<<< HEAD
 /**
  * Uploads a recorded voice note via the dedicated
  * `POST /conversations/:conversationId/voice` endpoint (audio only, 50MB max).
  * REST-only — there's no socket fast path for binary uploads, unlike
  * `useSendMessage`.
  */
+=======
+async function uploadAndSendVoiceNote(conversationId: string, file: File) {
+  const { url } = await mediaApi.upload(file);
+  return conversationsApi.sendMessage(conversationId, { mediaUrl: url });
+}
+
+>>>>>>> 46f387a99efa59e57542b8ee59897bbcef00dc9d
 export function useSendVoiceMessage(conversationId: string) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: ({ file, duration }: { file: File; duration: number }) =>
-      conversationsApi.sendVoiceMessage(conversationId, file, duration),
+    mutationFn: (file: File) => uploadAndSendVoiceNote(conversationId, file),
     onSuccess: (message) => {
       queryClient.setQueryData(
         queryKeys.conversations.messages(conversationId),
