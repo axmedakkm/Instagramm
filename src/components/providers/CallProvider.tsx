@@ -11,6 +11,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useSocket } from "@/hooks/useSocket";
+import { ICE_SERVERS } from "@/lib/constants";
 import { callsApi } from "@/services/api";
 import type { CallType, UserSummary } from "@/types";
 
@@ -41,11 +42,6 @@ interface CallContextValue {
 }
 
 const CallContext = createContext<CallContextValue | null>(null);
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
 
 interface SignalData {
   kind: "offer" | "answer" | "ice";

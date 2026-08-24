@@ -33,7 +33,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const nextSocket = io(`${SOCKET_URL}/chat`, {
       auth: { token: accessToken },
-      transports: ["websocket"],
+      // Let Engine.IO negotiate normally (HTTP polling handshake, then
+      // upgrade to WebSocket) instead of forcing a raw WebSocket from the
+      // first request. Render's proxy (and most reverse proxies/load
+      // balancers) doesn't reliably complete a cold WS upgrade, which
+      // surfaced as "WebSocket is closed before the connection is
+      // established" and broke every real-time feature that has no REST
+      // fallback (calls) while ones that do (message send, voice notes)
+      // kept working.
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
     });
