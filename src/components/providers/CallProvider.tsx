@@ -1,7 +1,6 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
 import {
   createContext,
   useCallback,
@@ -13,7 +12,9 @@ import {
 import { toast } from "sonner";
 import { useSocket } from "@/hooks/useSocket";
 import { ICE_SERVERS } from "@/lib/constants";
-
+import { callsApi, conversationsApi } from "@/services/api";
+import { queryKeys } from "@/services/queryKeys";
+import type { CallType, Message, UserSummary } from "@/types";
 
 export type { CallType };
 /** idle → (caller) calling → connecting → in-call. (callee) ringing → connecting → in-call. */
@@ -186,6 +187,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         );
       }),
     [socket],
+  );
+
   /**
    * Drops a "📞 Missed call" / "🎥 Video call · 2:05" style line into the
    * conversation once a call ends, same as WhatsApp/Instagram's call log.
@@ -450,10 +453,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         conversationId: session.conversationId,
       });
       if (session.recordId) callsApi.end(session.recordId).catch(() => {});
-    }
-    cleanup();
-  }, [emit, cleanup]);
-      callsApi.end(session.callId).catch(() => {});
       if (session.role === "caller") {
         logCallOutcome(
           session.conversationId,
@@ -463,7 +462,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     }
     cleanup();
-  }, [cleanup, logCallOutcome]);
+  }, [emit, cleanup, logCallOutcome]);
 
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
@@ -580,11 +579,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       toast("Call declined.");
       if (session.recordId) {
         callsApi.answer(session.recordId, "reject").catch(() => {});
-      if (session) {
-        toast("Call declined.");
-        if (session.role === "caller") {
-          logCallOutcome(session.conversationId, session.callType, "declined");
-        }
+      }
+      if (session.role === "caller") {
+        logCallOutcome(session.conversationId, session.callType, "declined");
       }
       cleanup();
     };
