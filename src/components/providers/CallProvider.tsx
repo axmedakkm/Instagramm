@@ -1,7 +1,6 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
 import {
   createContext,
   useCallback,
@@ -13,7 +12,9 @@ import {
 import { toast } from "sonner";
 import { useSocket } from "@/hooks/useSocket";
 import { ICE_SERVERS } from "@/lib/constants";
-
+import { callsApi, conversationsApi } from "@/services/api";
+import { queryKeys } from "@/services/queryKeys";
+import type { CallType, Message, UserSummary } from "@/types";
 
 export type { CallType };
 /** idle → (caller) calling → connecting → in-call. (callee) ringing → connecting → in-call. */
