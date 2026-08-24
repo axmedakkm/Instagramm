@@ -15,6 +15,7 @@ export function CallOverlay() {
     remoteStream,
     isMuted,
     isCameraOff,
+    callDuration,
     acceptCall,
     rejectCall,
     endCall,
@@ -39,6 +40,11 @@ export function CallOverlay() {
 
   const isVideo = callType === "video";
   const isConnected = status === "in-call";
+  const durationLabel = `${String(Math.floor(callDuration / 60)).padStart(2, "0")}:${String(
+    callDuration % 60,
+  ).padStart(2, "0")}`;
+  // Duration is shown separately in the top badge once connected, so this
+  // label only covers the pre-connection states.
   const statusLabel =
     status === "ringing"
       ? `Incoming ${isVideo ? "video" : "voice"} call`
@@ -46,9 +52,7 @@ export function CallOverlay() {
         ? "Calling…"
         : status === "connecting"
           ? "Connecting…"
-          : isVideo
-            ? ""
-            : "On call";
+          : "";
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-between bg-neutral-950 text-white">
@@ -63,6 +67,14 @@ export function CallOverlay() {
       )}
       {/* Audio sink — needed for voice calls and as a fallback for video. */}
       <audio ref={remoteAudioRef} autoPlay className="hidden" />
+
+      {/* Duration badge — pinned to the top so it stays visible even once
+       * the peer identity block fades out behind a connected video call. */}
+      {isConnected && (
+        <p className="z-10 mt-4 rounded-full bg-black/40 px-3 py-1 text-sm tabular-nums text-white/90">
+          {durationLabel}
+        </p>
+      )}
 
       {/* Local self-view (picture-in-picture) for video calls. */}
       {isVideo && (localStream || isConnected) && (
