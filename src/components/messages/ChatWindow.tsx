@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Image as ImageIcon, Phone, Video } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import { useCall } from "@/components/providers/CallProvider";
@@ -9,6 +10,7 @@ import { MessageInput } from "@/components/messages/MessageInput";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useSocket } from "@/hooks/useSocket";
+import { getMessageMediaKind } from "@/lib/media";
 import { cn } from "@/lib/utils";
 import { conversationsApi, messagesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
@@ -166,13 +168,29 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                     Shared a post
                   </Link>
                 )}
-                {message.mediaUrl && (
-                  <audio
-                    src={message.mediaUrl}
-                    controls
-                    className="h-9 max-w-full"
-                  />
-                )}
+                {message.mediaUrl &&
+                  (getMessageMediaKind(message.mediaUrl) === "image" ? (
+                    <a
+                      href={message.mediaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="relative block h-52 w-52 max-w-full overflow-hidden rounded-lg"
+                    >
+                      <Image
+                        src={message.mediaUrl}
+                        alt="Photo"
+                        fill
+                        sizes="208px"
+                        className="object-cover"
+                      />
+                    </a>
+                  ) : (
+                    <audio
+                      src={message.mediaUrl}
+                      controls
+                      className="h-9 max-w-full"
+                    />
+                  ))}
                 {message.text && <p>{message.text}</p>}
                 <TimeAgo
                   date={message.createdAt}
