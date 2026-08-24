@@ -4,6 +4,7 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  Lock,
   LogOut,
   Moon,
   User as UserIcon,
@@ -78,6 +79,16 @@ export default function SettingsPage() {
         >
           <Moon className="size-5" />
           Theme
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/settings/privacy")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Lock className="size-5" />
+          Account privacy
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 

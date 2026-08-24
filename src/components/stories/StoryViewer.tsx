@@ -75,6 +75,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
       setStoryIndex(0);
       setProgress(0);
       return;
+
     }
     router.push("/feed");
   }, [currentGroup, storyIndex, groupIndex, groups.length, router]);
