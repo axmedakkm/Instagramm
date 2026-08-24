@@ -49,7 +49,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
         {isOwner && (
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="secondary"
+              variant="default"
               size="sm"
               className="flex-1 sm:flex-none"
               onClick={() => setEditOpen(true)}
