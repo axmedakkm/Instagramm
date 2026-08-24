@@ -33,7 +33,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const nextSocket = io(`${SOCKET_URL}/chat`, {
       auth: { token: accessToken },
-      transports: ["websocket"],
+      // Let Engine.IO negotiate normally (HTTP polling handshake, then
+      // upgrade to WebSocket) instead of forcing a raw WebSocket from the
+
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
     });

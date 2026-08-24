@@ -1,5 +1,7 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import {
   createContext,
   useCallback,
@@ -10,8 +12,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useSocket } from "@/hooks/useSocket";
-import { callsApi } from "@/services/api";
-import type { CallType, UserSummary } from "@/types";
+import { ICE_SERVERS } from "@/lib/constants";
+
 
 export type { CallType };
 /** idle → (caller) calling → connecting → in-call. (callee) ringing → connecting → in-call. */
@@ -40,11 +42,6 @@ interface CallContextValue {
 }
 
 const CallContext = createContext<CallContextValue | null>(null);
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
 
 interface SignalData {
   kind: "offer" | "answer" | "ice";
@@ -96,6 +93,31 @@ function describeMediaError(error: unknown, type: CallType): string {
     : "Couldn't access your microphone.";
 }
 
+type CallOutcome = "missed" | "declined" | "ended" | "failed";
+
+/** The chat-log line for a call, e.g. "🎥 Video call · 2:05" or "📞 Missed voice call". */
+function describeCallOutcome(
+  type: CallType,
+  outcome: CallOutcome,
+  durationSeconds: number,
+): string {
+  const icon = type === "video" ? "🎥" : "📞";
+  const label = type === "video" ? "Video call" : "Voice call";
+  switch (outcome) {
+    case "missed":
+      return `${icon} Missed ${label.toLowerCase()}`;
+    case "declined":
+      return `${icon} ${label} declined`;
+    case "failed":
+      return `${icon} ${label} failed`;
+    case "ended": {
+      const minutes = Math.floor(durationSeconds / 60);
+      const seconds = durationSeconds % 60;
+      return `${icon} ${label} · ${minutes}:${seconds.toString().padStart(2, "0")}`;
+    }
+  }
+}
+
 /**
  * Owns 1:1 WebRTC audio/video calls. Call lifecycle (start/answer/end) goes
  * through the REST `/chats/:chatId/calls` + `/calls/:callId/{answer,end}`
@@ -108,6 +130,7 @@ function describeMediaError(error: unknown, type: CallType): string {
  */
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { socket } = useSocket();
+  const queryClient = useQueryClient();
 
   const [status, setStatus] = useState<CallStatus>("idle");
   const [callType, setCallType] = useState<CallType | null>(null);
@@ -122,6 +145,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  // Mirror `status`/`callDuration` into refs so socket handlers and
+  // callbacks below can read the *current* value without needing them as
+  // effect/callback dependencies (which would tear down and re-attach the
+  // socket listeners on every tick of the call-duration counter).
+  const statusRef = useRef<CallStatus>("idle");
+  const callDurationRef = useRef(0);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    callDurationRef.current = callDuration;
+  }, [callDuration]);
 
   const emit = useCallback(
     (event: string, payload: unknown) => {
@@ -149,6 +186,34 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         );
       }),
     [socket],
+  /**
+   * Drops a "📞 Missed call" / "🎥 Video call · 2:05" style line into the
+   * conversation once a call ends, same as WhatsApp/Instagram's call log.
+   * Only the caller's client ever calls this (see each call site) so a call
+   * that ends independently on both peers — e.g. both sides observing
+   * `RTCPeerConnection.connectionState` go to "failed" — doesn't double-post.
+   */
+  const logCallOutcome = useCallback(
+    (conversationId: string, type: CallType, outcome: CallOutcome) => {
+      const text = describeCallOutcome(type, outcome, callDurationRef.current);
+      conversationsApi
+        .sendMessage(conversationId, { text })
+        .then((message) => {
+          queryClient.setQueryData(
+            queryKeys.conversations.messages(conversationId),
+            (old: { items: Message[] } | undefined) => {
+              if (!old) return old;
+              if (old.items.some((item) => item.id === message.id)) return old;
+              return { ...old, items: [...old.items, message] };
+            },
+          );
+          queryClient.invalidateQueries({ queryKey: queryKeys.conversations.list });
+        })
+        .catch(() => {
+          /* best-effort — the call itself already ended either way */
+        });
+    },
+    [queryClient],
   );
 
   const cleanup = useCallback(() => {
@@ -229,6 +294,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           if (!session) return; // already torn down by our own cleanup()
           if (pc.connectionState === "failed") {
             toast.error("Call connection failed.");
+            if (session.role === "caller") {
+              logCallOutcome(session.conversationId, session.callType, "failed");
+            }
           }
           emit("call:end", {
             callId: session.signalId,
@@ -246,7 +314,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       pcRef.current = pc;
       return pc;
     },
-    [emit, cleanup],
+    [emit, cleanup, logCallOutcome],
   );
 
   const drainPendingCandidates = useCallback(async () => {
@@ -385,6 +453,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
     cleanup();
   }, [emit, cleanup]);
+      callsApi.end(session.callId).catch(() => {});
+      if (session.role === "caller") {
+        logCallOutcome(
+          session.conversationId,
+          session.callType,
+          statusRef.current === "in-call" ? "ended" : "missed",
+        );
+      }
+    }
+    cleanup();
+  }, [cleanup, logCallOutcome]);
 
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
@@ -501,6 +580,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       toast("Call declined.");
       if (session.recordId) {
         callsApi.answer(session.recordId, "reject").catch(() => {});
+      if (session) {
+        toast("Call declined.");
+        if (session.role === "caller") {
+          logCallOutcome(session.conversationId, session.callType, "declined");
+        }
       }
       cleanup();
     };
@@ -509,6 +593,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const onEnded = () => {
       const session = sessionRef.current;
       if (session?.recordId) callsApi.end(session.recordId).catch(() => {});
+      // Only the caller logs a call-log message (see `logCallOutcome`) — if
+      // *we're* the caller, the other side (callee) just ended an in-call or
+      // never picked up.
+      if (session && session.role === "caller") {
+        logCallOutcome(
+          session.conversationId,
+          session.callType,
+          statusRef.current === "in-call" ? "ended" : "missed",
+        );
+      }
       cleanup();
     };
 
@@ -525,7 +619,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       socket.off("call:rejected", onRejected);
       socket.off("call:ended", onEnded);
     };
-  }, [socket, drainPendingCandidates, cleanup, endCall]);
+  }, [socket, drainPendingCandidates, cleanup, endCall, logCallOutcome]);
 
   // Tear the call down if the socket drops entirely.
   useEffect(() => {
