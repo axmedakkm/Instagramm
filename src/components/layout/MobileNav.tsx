@@ -3,6 +3,7 @@
 import { Compass, Heart, Home, MessageCircle, PlusSquare } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UnreadDot } from "@/components/shared/UnreadDot";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ export function MobileNav() {
       href: "/messages",
       label: "Messages",
       icon: MessageCircle,
-      badge: unreadMessages,
+      hasDot: unreadMessages > 0,
     },
     {
       href: "/notifications",
@@ -81,6 +82,7 @@ function NavLink({
     href: string;
     label: string;
     icon: React.ElementType;
+    hasDot?: boolean;
     badge?: number;
   };
   isActive: boolean;
@@ -101,6 +103,9 @@ function NavLink({
         )}
         fill={isActive ? "currentColor" : "none"}
       />
+      {item.hasDot && (
+        <UnreadDot className="absolute right-[calc(50%-0.9rem)] top-3" />
+      )}
       {!!item.badge && (
         <span className="absolute right-[calc(50%-1.25rem)] top-2 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
           {item.badge > 9 ? "9+" : item.badge}

@@ -8,6 +8,7 @@ import { useState } from "react";
 import { NewMessageModal } from "@/components/messages/NewMessageModal";
 import { NotesRail } from "@/components/messages/NotesRail";
 import { TimeAgo } from "@/components/shared/TimeAgo";
+import { UnreadDot } from "@/components/shared/UnreadDot";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -167,9 +168,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
                   )}
                 </p>
               </div>
-              {conversation.unreadCount > 0 && (
-                <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-[linear-gradient(135deg,#ee2a7b,#6228d7)] shadow-[0_0_8px_rgba(238,42,123,0.6)]" />
-              )}
+              {conversation.unreadCount > 0 && <UnreadDot />}
             </Link>
           );
         })}
