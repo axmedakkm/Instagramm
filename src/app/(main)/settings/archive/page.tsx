@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Heart, Trash2 } from "lucide-react";
+import { Archive, ChevronLeft, Heart, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -58,7 +58,12 @@ export default function StoryArchivePage() {
         >
           <ChevronLeft className="size-5" />
         </Button>
-        <h1 className="text-xl font-semibold">Story archive</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Story archive</h1>
+          <p className="text-xs text-muted-foreground">
+            Your stories are saved here after 24 hours. Only you can see them.
+          </p>
+        </div>
       </header>
 
       {isLoading && (
@@ -70,10 +75,18 @@ export default function StoryArchivePage() {
       )}
 
       {!isLoading && stories?.length === 0 && (
-        <p className="py-16 text-center text-sm text-muted-foreground">
-          No stories yet. Once one of your stories is more than 24 hours
-          old, it lands here.
-        </p>
+        <div className="flex flex-col items-center justify-center gap-4 px-4 py-24 text-center">
+          <div className="flex size-20 items-center justify-center rounded-full border-2 border-foreground">
+            <Archive className="size-9" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-light">Nothing archived yet</h2>
+            <p className="mx-auto max-w-sm text-sm text-muted-foreground">
+              Once one of your stories is more than 24 hours old, it lands
+              here automatically.
+            </p>
+          </div>
+        </div>
       )}
 
       {!isLoading && stories && stories.length > 0 && (

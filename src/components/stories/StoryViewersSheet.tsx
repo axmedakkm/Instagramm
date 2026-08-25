@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Eye } from "lucide-react";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -52,8 +53,10 @@ export function StoryViewersSheet({
           )}
 
           {viewers?.map((viewer) => (
-            <div
+            <Link
               key={viewer.id}
+              href={`/${viewer.username}`}
+              onClick={() => onOpenChange(false)}
               className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-accent"
             >
               <UserAvatar user={viewer} size="sm" />
@@ -64,7 +67,7 @@ export function StoryViewersSheet({
                 </p>
               </div>
               <Eye className="size-4 shrink-0 text-muted-foreground" />
-            </div>
+            </Link>
           ))}
         </div>
       </DialogContent>

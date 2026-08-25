@@ -32,6 +32,9 @@ export interface User extends UserSummary {
   followingCount: number;
   postsCount: number;
   isFollowedByMe: boolean;
+  /** Whether *you've* blocked this user (not the reverse — if they'd blocked
+   * you, this profile would never have loaded in the first place). */
+  isBlockedByMe: boolean;
   createdAt: string;
 }
 

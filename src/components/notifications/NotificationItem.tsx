@@ -148,7 +148,11 @@ export function NotificationItem({
       {!notification.isRead && (
         <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-[linear-gradient(180deg,#f9ce34,#ee2a7b,#6228d7)]" />
       )}
-      <div className="relative shrink-0">
+      <Link
+        href={`/${notification.actor.username}`}
+        onClick={(event) => event.stopPropagation()}
+        className="relative shrink-0"
+      >
         <UserAvatar user={notification.actor} size="md" />
         <span
           className={cn(
@@ -158,7 +162,7 @@ export function NotificationItem({
         >
           <Icon className="size-3 fill-current" />
         </span>
-      </div>
+      </Link>
 
       <p className="min-w-0 flex-1 text-sm">
         <Link

@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  Ban,
   Bookmark,
   ChevronLeft,
   ChevronRight,
@@ -10,6 +11,7 @@ import {
   Moon,
   User as UserIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
@@ -42,7 +44,10 @@ export default function SettingsPage() {
       </header>
 
       {user && (
-        <div className="flex items-center gap-4 px-4 py-6">
+        <Link
+          href={`/${user.username}`}
+          className="flex items-center gap-4 px-4 py-6 transition-colors hover:bg-accent"
+        >
           <UserAvatar user={user} size="lg" />
           <div className="min-w-0">
             <p className="truncate font-semibold">{user.username}</p>
@@ -50,7 +55,7 @@ export default function SettingsPage() {
               {user.fullName}
             </p>
           </div>
-        </div>
+        </Link>
       )}
 
       <Separator />
@@ -77,16 +82,6 @@ export default function SettingsPage() {
 
         <button
           type="button"
-          onClick={() => router.push("/settings/archive")}
-          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
-        >
-          <Archive className="size-5" />
-          Archive
-          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
-        </button>
-
-        <button
-          type="button"
           onClick={() => router.push("/settings/theme")}
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
@@ -102,6 +97,16 @@ export default function SettingsPage() {
         >
           <Lock className="size-5" />
           Account privacy
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/settings/blocked")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Ban className="size-5" />
+          Blocked accounts
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 

@@ -125,6 +125,22 @@ export const usersApi = {
         { headers: { "Content-Type": "multipart/form-data" } },
       )
       .then((res) => res.data),
+
+  /**
+   * Blocking is one-directional visibility, not mutual: it hides *you* from
+   * the person you block (their profile/posts/stories/search all 404 or
+   * come back empty for them), but you can still see and unblock them
+   * yourself — same as Instagram. See insta_Back's `isBlockedByTarget`.
+   */
+  block: (userId: string) =>
+    api.post<void>(`/users/${userId}/block`).then((res) => res.data),
+
+  unblock: (userId: string) =>
+    api.delete<void>(`/users/${userId}/block`).then((res) => res.data),
+
+  /** Every account the current user has blocked. */
+  blocked: () =>
+    api.get<UserSummary[]>("/users/me/blocked").then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
@@ -234,16 +250,17 @@ export const storiesApi = {
     api.get<Story[]>(`/users/${userId}/stories`).then((res) => res.data),
 
   /**
-   * Upload a story, optionally with a music sticker. The backend expects the
-   * track as a JSON *string* field alongside the multipart file — it can't
-   * carry a nested object through form-data.
+   * Upload a story, optionally with a caption and/or a music sticker. The
+   * backend expects the track as a JSON *string* field alongside the
+   * multipart file — it can't carry a nested object through form-data.
    */
-  create: (file: File, music?: MusicTrack | null) =>
+  create: (file: File, music?: MusicTrack | null, caption?: string) =>
     api
       .post<Story>(
         "/stories",
         toFormData({
           media: file,
+          ...(caption ? { caption } : {}),
           ...(music ? { music: JSON.stringify(music) } : {}),
         }),
         { headers: { "Content-Type": "multipart/form-data" } },
@@ -282,12 +299,18 @@ export const conversationsApi = {
 
   /**
    * There's no `GET /conversations/:id` — creating with the same
-   * participant just returns the existing conversation, so this doubles as
-   * "get or create" for a 1:1 thread.
+   * participant set just returns the existing conversation (exact-match, so
+   * [a,b] and [a,b,c] never collide), so this doubles as "get or create" —
+   * for a 1:1 thread with one id, or a group with more than one.
    */
   getOrCreateWithUser: (userId: string) =>
     api
       .post<Conversation>("/conversations", { participantIds: [userId] })
+      .then((res) => res.data),
+
+  createGroup: (participantIds: string[]) =>
+    api
+      .post<Conversation>("/conversations", { participantIds })
       .then((res) => res.data),
 
   messages: (conversationId: string, page?: number) =>

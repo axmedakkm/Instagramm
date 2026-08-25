@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Search } from "lucide-react";
+import { Check, Loader2, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -22,8 +23,10 @@ import type { UserSummary } from "@/types";
 
 /**
  * "New message" composer. Lists the people the signed-in user follows as
- * ready-to-message suggestions, and lets them search everyone else. Picking a
- * person opens (or reuses) the 1:1 conversation and navigates into it.
+ * ready-to-message suggestions, and lets them search everyone else. Tapping
+ * people selects them (checkmark, same as Instagram's own composer) instead
+ * of opening a chat right away — "Chat" below then creates (or reuses) a 1:1
+ * conversation for one person, or a group for more than one.
  */
 export function NewMessageModal({
   open,
@@ -35,6 +38,7 @@ export function NewMessageModal({
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<UserSummary[]>([]);
   const debouncedQuery = useDebounce(query.trim(), 300);
   const isSearching = debouncedQuery.length > 0;
 
@@ -52,16 +56,31 @@ export function NewMessageModal({
     enabled: open && isSearching,
   });
 
+  const reset = () => {
+    setQuery("");
+    setSelected([]);
+  };
+
   const startConversation = useMutation({
-    mutationFn: (userId: string) =>
-      conversationsApi.getOrCreateWithUser(userId),
+    mutationFn: () =>
+      selected.length === 1
+        ? conversationsApi.getOrCreateWithUser(selected[0].id)
+        : conversationsApi.createGroup(selected.map((user) => user.id)),
     onSuccess: (conversation) => {
       onOpenChange(false);
-      setQuery("");
+      reset();
       router.push(`/messages/${conversation.id}`);
     },
-    onError: () => toast.error("Couldn't start that conversation."),
+    onError: () => toast.error("Couldn't start that chat."),
   });
+
+  const toggle = (person: UserSummary) => {
+    setSelected((prev) =>
+      prev.some((u) => u.id === person.id)
+        ? prev.filter((u) => u.id !== person.id)
+        : [...prev, person],
+    );
+  };
 
   const people: UserSummary[] = isSearching
     ? (searchResults ?? []).filter((user) => user.id !== currentUser?.id)
@@ -72,13 +91,15 @@ export function NewMessageModal({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setQuery("");
+        if (!next) reset();
         onOpenChange(next);
       }}
     >
       <DialogContent className="max-w-md gap-0 p-0">
         <DialogHeader>
-          <DialogTitle>New message</DialogTitle>
+          <DialogTitle>
+            {selected.length > 1 ? "New group" : "New message"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="border-b border-border p-3">
@@ -92,6 +113,23 @@ export function NewMessageModal({
               autoFocus
             />
           </div>
+
+          {selected.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {selected.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => toggle(person)}
+                  className="flex items-center gap-1 rounded-full bg-accent py-1 pl-1 pr-2 text-xs font-medium transition-colors hover:bg-accent/70"
+                >
+                  <UserAvatar user={person} size="xs" />
+                  {person.username}
+                  <X className="size-3" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="max-h-96 overflow-y-auto p-2">
@@ -119,16 +157,13 @@ export function NewMessageModal({
 
           {!isLoading &&
             people.map((person) => {
-              const isPending =
-                startConversation.isPending &&
-                startConversation.variables === person.id;
+              const isSelected = selected.some((u) => u.id === person.id);
               return (
                 <button
                   key={person.id}
                   type="button"
-                  disabled={startConversation.isPending}
-                  onClick={() => startConversation.mutate(person.id)}
-                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent disabled:opacity-60"
+                  onClick={() => toggle(person)}
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent"
                 >
                   <UserAvatar user={person} size="lg" />
                   <div className="min-w-0 flex-1">
@@ -139,12 +174,31 @@ export function NewMessageModal({
                       {person.fullName}
                     </p>
                   </div>
-                  {isPending && (
-                    <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
-                  )}
+                  <span
+                    className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-muted-foreground/40"
+                    }`}
+                  >
+                    {isSelected && <Check className="size-3.5" />}
+                  </span>
                 </button>
               );
             })}
+        </div>
+
+        <div className="border-t border-border p-3">
+          <Button
+            className="w-full"
+            disabled={selected.length === 0 || startConversation.isPending}
+            onClick={() => startConversation.mutate()}
+          >
+            {startConversation.isPending && (
+              <Loader2 className="size-4 animate-spin" />
+            )}
+            {selected.length > 1 ? `Create group (${selected.length})` : "Chat"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

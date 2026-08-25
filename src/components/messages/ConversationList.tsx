@@ -1,35 +1,61 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Search, SquarePen, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Ban,
+  MoreHorizontal,
+  Pin,
+  PinOff,
+  Search,
+  SquarePen,
+  Trash2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { NewMessageModal } from "@/components/messages/NewMessageModal";
 import { NotesRail } from "@/components/messages/NotesRail";
 import { TimeAgo } from "@/components/shared/TimeAgo";
-import { UnreadDot } from "@/components/shared/UnreadDot";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  conversationTitle,
+  isGroupConversation,
+  otherParticipants,
+} from "@/lib/conversation";
 import { cn } from "@/lib/utils";
-import { conversationsApi } from "@/services/api";
+import { conversationsApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import type { Conversation } from "@/types";
-
-function otherParticipant(conversation: Conversation, currentUserId?: string) {
-  return (
-    conversation.participants.find((p) => p.id !== currentUserId) ??
-    conversation.participants[0]
-  );
-}
+import {
+  isConversationHidden,
+  useConversationPrefsStore,
+} from "@/store/useConversationPrefsStore";
+import type { Conversation, UserSummary } from "@/types";
 
 export function ConversationList({ activeId }: { activeId?: string }) {
+  const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const [composeOpen, setComposeOpen] = useState(false);
   const [search, setSearch] = useState("");
+
+  const pinnedIds = useConversationPrefsStore((state) => state.pinnedIds);
+  const hiddenAt = useConversationPrefsStore((state) => state.hiddenAt);
+  const togglePin = useConversationPrefsStore((state) => state.togglePin);
+  const hideConversation = useConversationPrefsStore((state) => state.hide);
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.conversations.list,
@@ -37,19 +63,76 @@ export function ConversationList({ activeId }: { activeId?: string }) {
     refetchInterval: 5000,
   });
 
-  const allConversations = data?.items ?? [];
+  const { data: blockedUsers } = useQuery({
+    queryKey: queryKeys.users.blocked,
+    queryFn: usersApi.blocked,
+  });
+  const blockedIds = new Set((blockedUsers ?? []).map((u) => u.id));
 
-  // Filter locally on username / full name. The whole list is already in
-  // memory, so there's no request to debounce here — unlike the Explore
-  // search, which hits the server on every change.
+  const blockMutation = useMutation({
+    mutationFn: (userId: string) => usersApi.block(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.blocked });
+    },
+    onError: () => toast.error("Couldn't block that account."),
+  });
+
+  // Chats you've "deleted" drop out of your own list — until a new message
+  // arrives, same as Instagram. 1:1 chats with someone you've blocked drop
+  // out too, but stay out (no unblock-from-the-inbox way back). Groups are
+  // left alone — blocking one member shouldn't hide a whole group thread.
+  const allConversations = (data?.items ?? []).filter((conversation) => {
+    if (
+      isConversationHidden(
+        hiddenAt[conversation.id],
+        conversation.lastMessage?.createdAt,
+      )
+    ) {
+      return false;
+    }
+    if (isGroupConversation(conversation)) return true;
+    const [other] = otherParticipants(conversation, currentUser?.id);
+    return !other || !blockedIds.has(other.id);
+  });
+
+  // Filter locally on username / full name (any participant, for groups).
+  // The whole list is already in memory, so there's no request to debounce
+  // here — unlike the Explore search, which hits the server on every change.
   const query = search.trim().toLowerCase();
-  const conversations = allConversations.filter((conversation) => {
-    const other = otherParticipant(conversation, currentUser?.id);
-    return (
-      other.username.toLowerCase().includes(query) ||
-      other.fullName.toLowerCase().includes(query)
+  const matching = allConversations.filter((conversation) => {
+    const others = otherParticipants(conversation, currentUser?.id);
+    return others.some(
+      (other) =>
+        other.username.toLowerCase().includes(query) ||
+        other.fullName.toLowerCase().includes(query),
     );
   });
+
+  // Pinned chats float to the top, in their existing order (the sort is
+  // stable), then everyone else below.
+  const conversations = [...matching].sort((a, b) => {
+    const aPinned = pinnedIds.includes(a.id);
+    const bPinned = pinnedIds.includes(b.id);
+    return aPinned === bPinned ? 0 : aPinned ? -1 : 1;
+  });
+  const pinnedCount = conversations.filter((c) => pinnedIds.includes(c.id)).length;
+
+  const handleDelete = (conversationId: string) => {
+    hideConversation(conversationId);
+    toast.success("Chat deleted");
+    if (activeId === conversationId || pathname === `/messages/${conversationId}`) {
+      router.push("/messages");
+    }
+  };
+
+  const handleBlock = (conversationId: string, user: UserSummary) => {
+    blockMutation.mutate(user.id, {
+      onSuccess: () => toast.success(`@${user.username} blocked`),
+    });
+    if (activeId === conversationId || pathname === `/messages/${conversationId}`) {
+      router.push("/messages");
+    }
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -91,8 +174,6 @@ export function ConversationList({ activeId }: { activeId?: string }) {
 
         <NotesRail />
 
-        <p className="px-4 pb-1 pt-2 text-sm font-semibold">Messages</p>
-
         {isLoading &&
           Array.from({ length: 6 }).map((_, index) => (
             <div key={index} className="flex items-center gap-3 px-4 py-3">
@@ -129,52 +210,179 @@ export function ConversationList({ activeId }: { activeId?: string }) {
             </p>
           )}
 
-        {conversations.map((conversation) => {
-          const other = otherParticipant(conversation, currentUser?.id);
-          const isActive =
-            activeId === conversation.id ||
-            pathname === `/messages/${conversation.id}`;
+        {pinnedCount > 0 && (
+          <>
+            <p className="px-4 pb-1 pt-2 text-xs font-semibold text-muted-foreground">
+              Pinned
+            </p>
+            {conversations.slice(0, pinnedCount).map((conversation) => (
+              <ConversationRow
+                key={conversation.id}
+                conversation={conversation}
+                currentUserId={currentUser?.id}
+                isActive={
+                  activeId === conversation.id ||
+                  pathname === `/messages/${conversation.id}`
+                }
+                isPinned
+                onTogglePin={() => togglePin(conversation.id)}
+                onDelete={() => handleDelete(conversation.id)}
+                onBlock={(user) => handleBlock(conversation.id, user)}
+              />
+            ))}
+          </>
+        )}
 
-          return (
-            <Link
-              key={conversation.id}
-              href={`/messages/${conversation.id}`}
-              className={cn(
-                "relative flex items-center gap-3 px-4 py-3 transition-colors duration-200 ease-smooth hover:bg-accent",
-                isActive && "bg-accent",
-              )}
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-[linear-gradient(180deg,#f9ce34,#ee2a7b,#6228d7)]" />
-              )}
-              <UserAvatar user={other} size="lg" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {other.username}
-                </p>
-                <p
-                  className={cn(
-                    "truncate text-xs text-muted-foreground",
-                    conversation.unreadCount > 0 &&
-                      "font-semibold text-foreground",
-                  )}
-                >
-                  {conversation.lastMessage?.text ?? "Say hello \u{1F44B}"}
-                  {conversation.lastMessage && (
-                    <>
-                      {" · "}
-                      <TimeAgo date={conversation.lastMessage.createdAt} />
-                    </>
-                  )}
-                </p>
-              </div>
-              {conversation.unreadCount > 0 && <UnreadDot />}
-            </Link>
-          );
-        })}
+        <p className="px-4 pb-1 pt-2 text-sm font-semibold">Messages</p>
+
+        {conversations.slice(pinnedCount).map((conversation) => (
+          <ConversationRow
+            key={conversation.id}
+            conversation={conversation}
+            currentUserId={currentUser?.id}
+            isActive={
+              activeId === conversation.id ||
+              pathname === `/messages/${conversation.id}`
+            }
+            isPinned={false}
+            onTogglePin={() => togglePin(conversation.id)}
+            onDelete={() => handleDelete(conversation.id)}
+            onBlock={(user) => handleBlock(conversation.id, user)}
+          />
+        ))}
       </div>
 
       <NewMessageModal open={composeOpen} onOpenChange={setComposeOpen} />
     </div>
+  );
+}
+
+/**
+ * One row in the list. The three-dot menu is its own button next to the
+ * unread dot — clicking it stops the click from bubbling up to the `Link`
+ * around the row, so opening the menu doesn't also navigate into the chat.
+ */
+function ConversationRow({
+  conversation,
+  currentUserId,
+  isActive,
+  isPinned,
+  onTogglePin,
+  onDelete,
+  onBlock,
+}: {
+  conversation: Conversation;
+  currentUserId?: string;
+  isActive: boolean;
+  isPinned: boolean;
+  onTogglePin: () => void;
+  onDelete: () => void;
+  onBlock: (user: UserSummary) => void;
+}) {
+  const others = otherParticipants(conversation, currentUserId);
+  const isGroup = isGroupConversation(conversation);
+  const [leadOther] = others;
+
+  return (
+    <Link
+      href={`/messages/${conversation.id}`}
+      className={cn(
+        "relative flex items-center gap-3 px-4 py-3 transition-colors duration-200 ease-smooth hover:bg-accent",
+        isActive && "bg-accent",
+      )}
+    >
+      {isActive && (
+        <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-[linear-gradient(180deg,#f9ce34,#ee2a7b,#6228d7)]" />
+      )}
+      {leadOther && <UserAvatar user={leadOther} size="lg" />}
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-1 truncate text-sm font-medium">
+          {isPinned && (
+            <Pin className="size-3 shrink-0 fill-muted-foreground text-muted-foreground" />
+          )}
+          <span className="truncate">{conversationTitle(others)}</span>
+        </p>
+        <p
+          className={cn(
+            "truncate text-xs text-muted-foreground",
+            conversation.unreadCount > 0 && "font-semibold text-foreground",
+          )}
+        >
+          {conversation.lastMessage?.text ?? "Say hello \u{1F44B}"}
+          {conversation.lastMessage && (
+            <>
+              {" · "}
+              <TimeAgo date={conversation.lastMessage.createdAt} />
+            </>
+          )}
+        </p>
+      </div>
+
+      {conversation.unreadCount > 0 && (
+        <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-[linear-gradient(135deg,#ee2a7b,#6228d7)] shadow-[0_0_8px_rgba(238,42,123,0.6)]" />
+      )}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Chat options"
+            onClick={(event) => {
+              // Otherwise the click bubbles up to the `Link` and navigates
+              // into the chat instead of opening the menu.
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            className="size-8 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={(event) => {
+              event.preventDefault();
+              onTogglePin();
+            }}
+          >
+            {isPinned ? (
+              <>
+                <PinOff className="size-4" />
+                Unpin chat
+              </>
+            ) : (
+              <>
+                <Pin className="size-4" />
+                Pin chat
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {!isGroup && leadOther && (
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={(event) => {
+                event.preventDefault();
+                onBlock(leadOther);
+              }}
+            >
+              <Ban className="size-4" />
+              Block user
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={(event) => {
+              event.preventDefault();
+              onDelete();
+            }}
+          >
+            <Trash2 className="size-4" />
+            Delete chat
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </Link>
   );
 }

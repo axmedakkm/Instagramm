@@ -1,7 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link2, Loader2, Lock, Menu } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, Link2, Loader2, Lock, Menu, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,14 +9,23 @@ import { StoryRing } from "@/components/feed/StoryRing";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
+import { NoteBubble } from "@/components/shared/NoteBubble";
 import { Button } from "@/components/ui/button";
-import { conversationsApi, storiesApi } from "@/services/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { conversationsApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
 import type { User } from "@/types";
 
 export function ProfileHeader({ profile }: { profile: User }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const isOwner = currentUser?.id === profile.id;
   const [openList, setOpenList] = useState<"followers" | "following" | null>(
@@ -30,6 +39,34 @@ export function ProfileHeader({ profile }: { profile: User }) {
     onError: () => toast.error("Couldn't start that conversation."),
   });
 
+  // Blocking is one-directional (see usersApi.block) — it hides *you* from
+  // *them*, not the other way around, so this profile keeps loading for the
+  // blocker with `isBlockedByMe` flipped, same page, no navigation away.
+  const toggleBlock = useMutation({
+    mutationFn: () =>
+      profile.isBlockedByMe
+        ? usersApi.unblock(profile.id)
+        : usersApi.block(profile.id),
+    onSuccess: () => {
+      queryClient.setQueryData<User>(
+        queryKeys.users.detail(profile.username),
+        (old) => (old ? { ...old, isBlockedByMe: !old.isBlockedByMe } : old),
+      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.blocked });
+      toast.success(
+        profile.isBlockedByMe
+          ? `Unblocked @${profile.username}.`
+          : `Blocked @${profile.username}.`,
+      );
+    },
+    onError: () =>
+      toast.error(
+        profile.isBlockedByMe
+          ? "Couldn't unblock that account."
+          : "Couldn't block that account.",
+      ),
+  });
+
   // Does this person have a live story? Drives the ring around the avatar.
   // Same query key the stories bar uses, so it's served from cache.
   const { data: stories } = useQuery({
@@ -41,34 +78,45 @@ export function ProfileHeader({ profile }: { profile: User }) {
   const hasStory = !!stories && stories.length > 0;
   const hasUnviewed = !!stories?.some((story) => !story.isViewedByMe);
 
+  // Your own note, if it's still alive — shown as a bubble above your avatar,
+  // same as it appears in the messages rail and the feed's stories bar.
+  const note = useNotesStore((state) => state.note);
+  const activeNote = isOwner && note && !isNoteExpired(note) ? note : null;
+
   return (
     <header className="px-4 pb-6 pt-6 sm:pt-8">
       {/* Top row: avatar on the left, everything else in a column beside it. */}
       <div className="flex gap-4 sm:gap-6">
-        {/* With a story, the avatar becomes a button that opens it. Without
-            one there's nothing to open, so it stays a plain image. */}
-        {hasStory ? (
-          <button
-            type="button"
-            onClick={() => router.push(`/stories?u=${profile.username}`)}
-            aria-label={`View ${profile.username}'s story`}
-            className="shrink-0 rounded-full"
-          >
+        {/* The avatar sits in its own column so a note bubble can stack above
+            it without disturbing the info column beside it. */}
+        <div className="flex w-20 shrink-0 flex-col items-center gap-1 sm:w-28">
+          {activeNote && <NoteBubble note={activeNote} />}
+
+          {/* With a story, the avatar becomes a button that opens it. Without
+              one there's nothing to open, so it stays a plain image. */}
+          {hasStory ? (
+            <button
+              type="button"
+              onClick={() => router.push(`/stories?u=${profile.username}`)}
+              aria-label={`View ${profile.username}'s story`}
+              className="shrink-0 rounded-full"
+            >
+              <StoryRing
+                user={profile}
+                hasStory
+                hasUnviewed={hasUnviewed}
+                size="xl"
+                avatarClassName="size-20 sm:size-28"
+              />
+            </button>
+          ) : (
             <StoryRing
               user={profile}
-              hasStory
-              hasUnviewed={hasUnviewed}
               size="xl"
               avatarClassName="size-20 sm:size-28"
             />
-          </button>
-        ) : (
-          <StoryRing
-            user={profile}
-            size="xl"
-            avatarClassName="size-20 sm:size-28"
-          />
-        )}
+          )}
+        </div>
 
         <div className="min-w-0 flex-1">
           {/* Username + burger. The burger is pushed to the far right of the
@@ -170,6 +218,29 @@ export function ProfileHeader({ profile }: { profile: User }) {
               )}
               Message
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  aria-label="More options"
+                >
+                  <MoreHorizontal className="size-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={toggleBlock.isPending}
+                  onClick={() => toggleBlock.mutate()}
+                >
+                  <Ban className="size-4" />
+                  {profile.isBlockedByMe ? "Unblock" : "Block"} @
+                  {profile.username}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
       </div>
