@@ -5,7 +5,6 @@ import {
   Film,
   Heart,
   Home,
-  Camera,
   Menu,
   MessageCircle,
   PlusSquare,
@@ -14,6 +13,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
+import { BrandMark } from "@/components/shared/BrandMark";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,7 @@ export function Sidebar() {
         href="/feed"
         className="mb-8 flex items-center gap-2 px-2 text-xl font-bold transition-opacity duration-200 ease-smooth hover:opacity-70"
       >
-        <Camera className="size-7 shrink-0" />
+        <BrandMark className="size-7 shrink-0" />
         <span className="brand-gradient hidden xl:inline">Instagramm</span>
       </Link>
 
