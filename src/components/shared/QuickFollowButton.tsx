@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { usersApi } from "@/services/api";
@@ -36,7 +37,16 @@ export function QuickFollowButton({
   const mutation = useMutation({
     mutationFn: async () => {
       if (isActioned) {
-        await usersApi.unfollow(userId);
+        try {
+          await usersApi.unfollow(userId);
+        } catch (error) {
+          // 404 here means there's nothing left to unfollow/cancel — the
+          // relationship this button *thought* existed (from
+          // locally-persisted state) is already gone server-side. That's
+          // the exact end state cancelling was trying to reach, so it's a
+          // success, not an error.
+          if (!isAxiosError(error) || error.response?.status !== 404) throw error;
+        }
         return { status: "none" as const };
       }
       const { status } = await usersApi.follow(userId);
@@ -53,9 +63,8 @@ export function QuickFollowButton({
       }
     },
     onError: () => {
-      // A 404 here usually means the relationship this button *thought*
-      // existed (from locally-persisted state) is already gone server-side
-      // — clear it locally too instead of leaving the button stuck.
+      // Any *other* error clears local state too, so the button doesn't get
+      // stuck reflecting a relationship that (for whatever reason) isn't real.
       unfollow(userId);
       unrequest(userId);
       toast.error("Something went wrong. Please try again.");

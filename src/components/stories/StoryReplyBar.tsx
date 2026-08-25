@@ -46,6 +46,10 @@ function useStoryLike(story: Story) {
   return useMutation({
     mutationFn: () => storiesApi.like(story.id),
     onSuccess: () => {
+      // Refetching is what actually makes the like *visible* afterwards —
+      // `StoryViewer` derives `currentStory` from these same queries, so
+      // once they land, `story.isLikedByMe` flips true and the heart here
+      // stays filled instead of just flashing once on tap.
       queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
       queryClient.invalidateQueries({
         queryKey: queryKeys.stories.byUser(story.author.id),
@@ -80,7 +84,7 @@ export function StoryReplyBar({
   };
 
   const handleLike = () => {
-    if (reply.isPending) return;
+    if (reply.isPending || story.isLikedByMe) return;
     setJustLiked(true);
     reply.mutate({ text: "❤️" });
     like.mutate();
@@ -119,14 +123,17 @@ export function StoryReplyBar({
         <button
           type="button"
           onClick={handleLike}
-          disabled={reply.isPending}
-          className="shrink-0"
-          aria-label="Send a like"
+          disabled={reply.isPending || story.isLikedByMe}
+          aria-label={story.isLikedByMe ? "Already liked" : "Send a like"}
+          aria-pressed={story.isLikedByMe}
+          className="shrink-0 disabled:cursor-default"
         >
           <Heart
             className={cn(
               "size-7 text-white transition-transform",
-              justLiked && "scale-125 fill-destructive text-destructive",
+              justLiked && "scale-125",
+              (justLiked || story.isLikedByMe) &&
+                "fill-destructive text-destructive",
             )}
           />
         </button>

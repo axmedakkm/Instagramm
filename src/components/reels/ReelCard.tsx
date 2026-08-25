@@ -13,8 +13,8 @@ import { UserAvatar } from "@/components/shared/UserAvatar";
 import { patchPostInCaches } from "@/lib/postCache";
 import { cn } from "@/lib/utils";
 import { postsApi } from "@/services/api";
+import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useSavedPostsStore } from "@/store/useSavedPostsStore";
 import type { Post } from "@/types";
 
 /**
@@ -41,11 +41,6 @@ export function ReelCard({
 
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-
-  const isSaved = useSavedPostsStore((state) =>
-    state.posts.some((p) => p.id === post.id),
-  );
-  const toggleSaved = useSavedPostsStore((state) => state.toggle);
 
   // Only the reel on screen plays. Without this every video in the list
   // autoplays at once, which burns CPU and stacks audio the moment you unmute.
@@ -90,14 +85,25 @@ export function ReelCard({
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      isSaved ? postsApi.unsave(post.id) : postsApi.save(post.id),
+      post.isSavedByMe ? postsApi.unsave(post.id) : postsApi.save(post.id),
+    onMutate: () => {
+      patchPostInCaches(queryClient, post.id, (item) => ({
+        ...item,
+        isSavedByMe: !item.isSavedByMe,
+      }));
+    },
+    onSuccess: () => {
+      toast.success(post.isSavedByMe ? "Removed from saved" : "Saved");
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.saved });
+    },
+    onError: () => {
+      patchPostInCaches(queryClient, post.id, (item) => ({
+        ...item,
+        isSavedByMe: post.isSavedByMe,
+      }));
+      toast.error("Couldn't update saved. Please try again.");
+    },
   });
-
-  const handleToggleSave = () => {
-    toast.success(isSaved ? "Removed from saved" : "Saved");
-    toggleSaved(post);
-    saveMutation.mutate();
-  };
 
   const mediaUrl = post.mediaUrls[0];
   const isOwnReel = currentUser?.id === post.author.id;
@@ -208,14 +214,14 @@ export function ReelCard({
           </RailButton>
 
           <RailButton
-            label={isSaved ? "Remove from saved" : "Save"}
-            onClick={handleToggleSave}
+            label={post.isSavedByMe ? "Remove from saved" : "Save"}
+            onClick={() => saveMutation.mutate()}
           >
             <Bookmark
-              key={String(isSaved)}
+              key={String(post.isSavedByMe)}
               className={cn(
                 "size-7",
-                isSaved && "animate-like-pop fill-current",
+                post.isSavedByMe && "animate-like-pop fill-current",
               )}
             />
           </RailButton>

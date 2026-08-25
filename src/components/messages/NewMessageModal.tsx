@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -19,7 +19,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { conversationsApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import type { UserSummary } from "@/types";
+import type { Conversation, PaginatedResponse, UserSummary } from "@/types";
 
 /**
  * "New message" composer. Lists the people the signed-in user follows as
@@ -36,6 +36,7 @@ export function NewMessageModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<UserSummary[]>([]);
@@ -67,6 +68,25 @@ export function NewMessageModal({
         ? conversationsApi.getOrCreateWithUser(selected[0].id)
         : conversationsApi.createGroup(selected.map((user) => user.id)),
     onSuccess: (conversation) => {
+      // `ChatWindow` has no `GET /conversations/:id` to fall back on — it
+      // reads this same list query to find the conversation by id. Seed the
+      // new one in directly instead of just invalidating: the list query is
+      // about to go inactive (we're navigating away from it), so a bare
+      // invalidate wouldn't actually refetch in time and the chat would
+      // render with no participants until something else refreshed it.
+      queryClient.setQueryData<PaginatedResponse<Conversation>>(
+        queryKeys.conversations.list,
+        (old) =>
+          old
+            ? {
+                ...old,
+                items: [
+                  conversation,
+                  ...old.items.filter((item) => item.id !== conversation.id),
+                ],
+              }
+            : old,
+      );
       onOpenChange(false);
       reset();
       router.push(`/messages/${conversation.id}`);

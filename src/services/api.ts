@@ -143,6 +143,27 @@ export const usersApi = {
   /** Every account the current user has blocked. */
   blocked: () =>
     api.get<UserSummary[]>("/users/me/blocked").then((res) => res.data),
+
+  /** Every post the current user has saved — the real source of truth for
+   * the Saved page (see `postsApi.save`/`.unsave` for the toggle itself). */
+  saved: (page?: number) =>
+    api
+      .get<PaginatedResponse<Post>>("/users/me/saved", { params: { page } })
+      .then((res) => res.data),
+
+  /**
+   * "Hide story from" — one-directional and author-controlled, unlike
+   * `block`: the hidden person keeps seeing everything else of yours, just
+   * never your stories. See `insta_Back`'s `isHiddenFromStories`.
+   */
+  storyHidden: () =>
+    api.get<UserSummary[]>("/users/me/story-hidden").then((res) => res.data),
+
+  hideStoryFrom: (userId: string) =>
+    api.post<void>(`/users/${userId}/story-hidden`).then((res) => res.data),
+
+  unhideStoryFrom: (userId: string) =>
+    api.delete<void>(`/users/${userId}/story-hidden`).then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
@@ -252,18 +273,35 @@ export const storiesApi = {
     api.get<Story[]>(`/users/${userId}/stories`).then((res) => res.data),
 
   /**
-   * Upload a story, optionally with a caption and/or a music sticker. The
-   * backend expects the track as a JSON *string* field alongside the
-   * multipart file — it can't carry a nested object through form-data.
+   * Upload a story, optionally with a caption (+ where it was dragged to)
+   * and/or a music sticker. The backend expects the track as a JSON
+   * *string* field alongside the multipart file — it can't carry a nested
+   * object through form-data; the caption position is two separate number
+   * fields for the same reason.
    */
-  create: (file: File, music?: MusicTrack | null, caption?: string) =>
+  create: (
+    file: File,
+    options?: {
+      music?: MusicTrack | null;
+      caption?: string;
+      captionPosition?: { x: number; y: number } | null;
+    },
+  ) =>
     api
       .post<Story>(
         "/stories",
         toFormData({
           media: file,
-          ...(caption ? { caption } : {}),
-          ...(music ? { music: JSON.stringify(music) } : {}),
+          ...(options?.caption ? { caption: options.caption } : {}),
+          ...(options?.music
+            ? { music: JSON.stringify(options.music) }
+            : {}),
+          ...(options?.caption && options?.captionPosition
+            ? {
+                captionX: options.captionPosition.x,
+                captionY: options.captionPosition.y,
+              }
+            : {}),
         }),
         { headers: { "Content-Type": "multipart/form-data" } },
       )
