@@ -9,6 +9,7 @@ import type {
   Conversation,
   LoginPayload,
   Message,
+  MusicTrack,
   Notification,
   PaginatedResponse,
   Post,
@@ -231,11 +232,21 @@ export const storiesApi = {
   byUser: (userId: string) =>
     api.get<Story[]>(`/users/${userId}/stories`).then((res) => res.data),
 
-  create: (file: File) =>
+  /**
+   * Upload a story, optionally with a music sticker. The backend expects the
+   * track as a JSON *string* field alongside the multipart file — it can't
+   * carry a nested object through form-data.
+   */
+  create: (file: File, music?: MusicTrack | null) =>
     api
-      .post<Story>("/stories", toFormData({ media: file }), {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
+      .post<Story>(
+        "/stories",
+        toFormData({
+          media: file,
+          ...(music ? { music: JSON.stringify(music) } : {}),
+        }),
+        { headers: { "Content-Type": "multipart/form-data" } },
+      )
       .then((res) => res.data),
 
   delete: (storyId: string) =>
@@ -345,6 +356,24 @@ export const notificationsApi = {
 
   markAllRead: () =>
     api.post<void>("/notifications/read-all").then((res) => res.data),
+};
+
+/** ------------------------------------------------------------------ */
+/** Music                                                               */
+/** ------------------------------------------------------------------ */
+
+export const musicApi = {
+  /**
+   * Search the catalogue for stories and notes. The backend fronts Apple's
+   * iTunes Search API and only returns tracks that actually have a preview
+   * clip, so every result here is playable.
+   */
+  search: (query: string, limit = 25) =>
+    api
+      .get<{ items: MusicTrack[] }>("/music/search", {
+        params: { q: query, limit },
+      })
+      .then((res) => res.data.items),
 };
 
 /** ------------------------------------------------------------------ */

@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { StoryMusic } from "@/store/useStoryArchiveStore";
+import type { MusicTrack } from "@/types";
 
 /** A short note you leave above your inbox, optionally with a song. */
 export interface Note {
   text: string;
-  music?: StoryMusic;
+  music?: MusicTrack;
   /** ISO timestamp — notes expire 24h after they're posted. */
   createdAt: string;
 }
@@ -25,7 +25,7 @@ const NOTE_LIFETIME_MS = 24 * 60 * 60 * 1000;
  */
 interface NotesState {
   note: Note | null;
-  setNote: (text: string, music?: StoryMusic) => void;
+  setNote: (text: string, music?: MusicTrack) => void;
   clearNote: () => void;
 }
 

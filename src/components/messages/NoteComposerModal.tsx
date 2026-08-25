@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { NOTE_MAX_LENGTH, useNotesStore, type Note } from "@/store/useNotesStore";
-import type { StoryMusic } from "@/store/useStoryArchiveStore";
+import type { MusicTrack } from "@/types";
 
 /**
  * Write (or edit) the note that sits above your inbox. A note is a line of
@@ -49,7 +49,7 @@ function NoteForm({ note, onClose }: { note: Note | null; onClose: () => void })
   const clearNote = useNotesStore((state) => state.clearNote);
 
   const [text, setText] = useState(note?.text ?? "");
-  const [music, setMusic] = useState<StoryMusic | null>(note?.music ?? null);
+  const [music, setMusic] = useState<MusicTrack | null>(note?.music ?? null);
 
   const trimmed = text.trim();
 

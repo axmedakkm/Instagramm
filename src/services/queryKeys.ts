@@ -29,6 +29,9 @@ export const queryKeys = {
     byUser: (userId: string) => ["stories", "user", userId] as const,
     viewers: (storyId: string) => ["stories", "viewers", storyId] as const,
   },
+  music: {
+    search: (query: string) => ["music", "search", query] as const,
+  },
   conversations: {
     list: ["conversations"] as const,
     messages: (conversationId: string) =>

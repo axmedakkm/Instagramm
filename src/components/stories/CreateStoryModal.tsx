@@ -17,11 +17,9 @@ import { MusicPicker } from "@/components/shared/MusicPicker";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import {
-  useStoryArchiveStore,
-  type StoryMusic,
-} from "@/store/useStoryArchiveStore";
+import { useStoryArchiveStore } from "@/store/useStoryArchiveStore";
 import { useUIStore } from "@/store/useUIStore";
+import type { MusicTrack } from "@/types";
 
 export function CreateStoryModal() {
   const isOpen = useUIStore((state) => state.isCreateStoryOpen);
@@ -33,7 +31,7 @@ export function CreateStoryModal() {
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [music, setMusic] = useState<StoryMusic | null>(null);
+  const [music, setMusic] = useState<MusicTrack | null>(null);
 
   const resetForm = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -58,13 +56,13 @@ export function CreateStoryModal() {
   };
 
   const mutation = useMutation({
-    mutationFn: () => storiesApi.create(file as File),
+    mutationFn: () => storiesApi.create(file as File, music),
     onSuccess: (createdStory) => {
       toast.success("Your story was shared!");
-      // Save a copy (plus the chosen music) to the local archive so it's still
-      // here after the story expires in 24h. `music ?? undefined` keeps the
-      // field off entirely when no track was picked.
-      addToArchive({ ...createdStory, music: music ?? undefined });
+      // Save a copy to the local archive so it's still here after the story
+      // expires in 24h. The music comes back on `createdStory` already — the
+      // backend persists it — so there's nothing to stitch in.
+      addToArchive(createdStory);
       queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
       // The stories bar's "Your story" ring reads this key to know you
       // have an active story — without invalidating it too, the ring

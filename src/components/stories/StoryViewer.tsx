@@ -12,7 +12,6 @@ import { TimeAgo } from "@/components/shared/TimeAgo";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useStoryArchiveStore } from "@/store/useStoryArchiveStore";
 import type { StoryGroup } from "@/types";
 
 const STORY_DURATION_MS = 5000;
@@ -20,7 +19,6 @@ const STORY_DURATION_MS = 5000;
 export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const archivedStories = useStoryArchiveStore((state) => state.stories);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -63,8 +61,9 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const currentGroup = groups[groupIndex];
   const currentStory = currentGroup?.stories[storyIndex];
   const isOwnStory = !!currentUser && currentGroup?.user.id === currentUser.id;
-  // Music only exists for your own stories, saved locally when you posted them.
-  const music = archivedStories.find((s) => s.id === currentStory?.id)?.music;
+  // The music sticker now comes back on the story itself from the API, so it
+  // plays for everyone's stories — not just your own.
+  const music = currentStory?.music;
 
   const close = () => router.push("/feed");
 
@@ -235,14 +234,18 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
         {music && (
           <>
             {/* Loops for the whole time this story is on screen. Keyed by story
-                id so switching stories restarts the track from the top. */}
-            <audio
-              key={currentStory.id}
-              ref={audioRef}
-              src={music.previewUrl}
-              autoPlay
-              loop
-            />
+                id so switching stories restarts the track from the top. The
+                backend only returns playable tracks, but the field is nullable
+                so guard it rather than trust that. */}
+            {music.previewUrl && (
+              <audio
+                key={currentStory.id}
+                ref={audioRef}
+                src={music.previewUrl}
+                autoPlay
+                loop
+              />
+            )}
             <div className="absolute inset-x-3 bottom-16 z-20 flex justify-center">
               <span className="flex max-w-[80%] items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
                 <Music className="size-3.5 shrink-0" />

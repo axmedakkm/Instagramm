@@ -1,41 +1,48 @@
 "use client";
 
-import { Music, Search, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Music, Search, X } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { STORY_MUSIC } from "@/lib/storyMusic";
-import type { StoryMusic } from "@/store/useStoryArchiveStore";
+import { useDebounce } from "@/hooks/useDebounce";
+import { musicApi } from "@/services/api";
+import { queryKeys } from "@/services/queryKeys";
+import type { MusicTrack } from "@/types";
 
 /**
- * Pick a song from the built-in library, with search.
+ * Pick a song from the catalogue, with search.
  *
  * Used by both the story composer and the note composer. It owns only its own
  * throwaway UI state (the search box and whether the list is open); the chosen
  * track lives in the parent via `value` / `onChange`.
+ *
+ * Results come from `GET /music/search`, which the backend proxies to Apple's
+ * iTunes Search API — so this is a real catalogue, not a fixed list. That's
+ * also why the query is debounced: every keystroke would otherwise be a
+ * request.
  */
 export function MusicPicker({
   value,
   onChange,
   label = "Add music",
 }: {
-  value: StoryMusic | null;
-  onChange: (music: StoryMusic | null) => void;
+  value: MusicTrack | null;
+  onChange: (music: MusicTrack | null) => void;
   label?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query.trim(), 350);
 
-  // Match on title *or* artist. Lowercasing both sides means "NOVA", "nova"
-  // and "Nova" all find the same track. The library is a handful of items in
-  // memory, so this runs on every keystroke with nothing to debounce.
-  const search = query.trim().toLowerCase();
-  const visibleTracks = STORY_MUSIC.filter(
-    (track) =>
-      track.title.toLowerCase().includes(search) ||
-      track.artist.toLowerCase().includes(search),
-  );
+  const { data: tracks, isFetching, isError } = useQuery({
+    queryKey: queryKeys.music.search(debouncedQuery),
+    queryFn: () => musicApi.search(debouncedQuery),
+    enabled: isOpen && debouncedQuery.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const handlePick = (track: StoryMusic) => {
+  const handlePick = (track: MusicTrack) => {
     onChange(track);
     setIsOpen(false);
     setQuery("");
@@ -45,8 +52,8 @@ export function MusicPicker({
   if (value) {
     return (
       <div className="flex items-center justify-between gap-2 rounded-lg bg-accent px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Music className="size-4 shrink-0 text-primary" />
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Artwork track={value} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{value.title}</p>
             <p className="truncate text-xs text-muted-foreground">
@@ -87,22 +94,35 @@ export function MusicPicker({
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search music"
-              className="h-9 pl-9"
+              placeholder="Search for a song or artist"
+              className="h-9 pl-9 pr-9"
             />
+            {isFetching && (
+              <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
           </div>
 
-          <div className="max-h-44 space-y-0.5 overflow-y-auto">
-            {visibleTracks.map((track) => (
+          <div className="max-h-52 space-y-0.5 overflow-y-auto">
+            {debouncedQuery.length === 0 && (
+              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                Search for a song to add.
+              </p>
+            )}
+
+            {isError && (
+              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                Couldn&apos;t reach the music catalogue.
+              </p>
+            )}
+
+            {tracks?.map((track) => (
               <button
-                key={track.id}
+                key={track.trackId}
                 type="button"
                 onClick={() => handlePick(track)}
                 className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent"
               >
-                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)] text-white">
-                  <Music className="size-4" />
-                </span>
+                <Artwork track={track} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">
                     {track.title}
@@ -114,14 +134,35 @@ export function MusicPicker({
               </button>
             ))}
 
-            {visibleTracks.length === 0 && (
+            {tracks?.length === 0 && !isFetching && (
               <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                No music matches &ldquo;{query.trim()}&rdquo;.
+                No music matches &ldquo;{debouncedQuery}&rdquo;.
               </p>
             )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** Album cover, falling back to a gradient tile when there isn't one. */
+function Artwork({ track }: { track: MusicTrack }) {
+  if (!track.artworkUrl) {
+    return (
+      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-[linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)] text-white">
+        <Music className="size-4" />
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={track.artworkUrl}
+      alt=""
+      width={36}
+      height={36}
+      className="size-9 shrink-0 rounded-md object-cover"
+    />
   );
 }
