@@ -17,7 +17,6 @@ import {
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useStoryArchiveStore } from "@/store/useStoryArchiveStore";
 import type { MusicTrack } from "@/types";
 
 /** Caption can't run away past what's readable on a phone-sized frame. */
@@ -31,7 +30,6 @@ const CAPTION_MAX_LENGTH = 200;
 export function CreateStoryComposer() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const addToArchive = useStoryArchiveStore((state) => state.add);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,12 +61,11 @@ export function CreateStoryComposer() {
 
   const mutation = useMutation({
     mutationFn: () => storiesApi.create(file as File, music, caption.trim()),
-    onSuccess: (createdStory) => {
+    onSuccess: () => {
       toast.success("Your story was shared!");
-      // Save a copy to the local archive so it's still here after the story
-      // expires in 24h. Music/caption come back on `createdStory` already —
-      // the backend persists both — so there's nothing to stitch in.
-      addToArchive(createdStory);
+      // The archive page reads straight from `GET /stories/me/archive`, so
+      // there's nothing to stitch into a local cache here.
+      queryClient.invalidateQueries({ queryKey: queryKeys.stories.archive });
       queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
       // The stories bar's "Your story" ring reads this key to know you have
       // an active story — without invalidating it too, the ring keeps

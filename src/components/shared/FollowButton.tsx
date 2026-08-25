@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -48,7 +49,16 @@ export function FollowButton({
   const mutation = useMutation({
     mutationFn: async () => {
       if (isFollowing || isRequested) {
-        await usersApi.unfollow(user.id);
+        try {
+          await usersApi.unfollow(user.id);
+        } catch (error) {
+          // 404 here means there's nothing left to unfollow/cancel — the
+          // relationship this button *thought* existed (from possibly-stale
+          // local state) is already gone server-side. That's the exact end
+          // state cancelling was trying to reach, so treat it as success
+          // instead of surfacing an error for something that isn't wrong.
+          if (!isAxiosError(error) || error.response?.status !== 404) throw error;
+        }
         return { action: "removed" as const };
       }
       const { status } = await usersApi.follow(user.id);

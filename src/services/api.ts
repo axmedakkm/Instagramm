@@ -142,6 +142,13 @@ export const usersApi = {
   /** Every account the current user has blocked. */
   blocked: () =>
     api.get<UserSummary[]>("/users/me/blocked").then((res) => res.data),
+
+  /** Every post the current user has saved — the real source of truth for
+   * the Saved page (see `postsApi.save`/`.unsave` for the toggle itself). */
+  saved: (page?: number) =>
+    api
+      .get<PaginatedResponse<Post>>("/users/me/saved", { params: { page } })
+      .then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
