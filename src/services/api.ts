@@ -458,6 +458,13 @@ export const notificationsApi = {
 /** ------------------------------------------------------------------ */
 
 export const musicApi = {
+  /** The curated catalogue shown in the picker — `src/data/topTracks.json`
+   * on the backend, so it needs no network call out to Apple. */
+  trending: (limit?: number) =>
+    api
+      .get<{ items: MusicTrack[] }>("/music/trending", { params: { limit } })
+      .then((res) => res.data.items),
+
   /**
    * Search the catalogue for stories and notes. The backend fronts Apple's
    * iTunes Search API and only returns tracks that actually have a preview

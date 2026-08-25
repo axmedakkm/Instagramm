@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import {
   Film,
   Heart,
@@ -15,13 +14,22 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { BrandMark } from "@/components/shared/BrandMark";
+import { UnreadDot } from "@/components/shared/UnreadDot";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { cn } from "@/lib/utils";
-import { notificationsApi } from "@/services/api";
-import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useUIStore } from "@/store/useUIStore";
+
+/** A nav row. It carries either an unread dot or a count, never both. */
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  hasDot?: boolean;
+  badge?: number;
+};
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -35,27 +43,26 @@ export function Sidebar() {
   // them.
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { data: notifications } = useQuery({
-    queryKey: queryKeys.notifications.list,
-    queryFn: () => notificationsApi.list(),
-    staleTime: 15 * 1000,
-    refetchInterval: 30 * 1000,
-  });
+  const { unreadMessages, unreadNotifications } = useUnreadCounts();
 
-  const unreadCount =
-    notifications?.items.filter((notification) => !notification.isRead)
-      .length ?? 0;
-
-  const navItems = [
+  // Messages get a dot, notifications get a number. A dot answers "is there
+  // anything?", which is all you need before opening the inbox; a count
+  // answers "how many?", which is worth knowing for notifications.
+  const navItems: NavItem[] = [
     { href: "/feed", label: "Home", icon: Home },
     { href: "/explore", label: "Search", icon: Search },
     { href: "/reels", label: "Reels", icon: Film },
-    { href: "/messages", label: "Messages", icon: MessageCircle },
+    {
+      href: "/messages",
+      label: "Messages",
+      icon: MessageCircle,
+      hasDot: unreadMessages > 0,
+    },
     {
       href: "/notifications",
       label: "Notifications",
       icon: Heart,
-      badge: unreadCount,
+      badge: unreadNotifications,
     },
   ];
 
@@ -106,8 +113,9 @@ export function Sidebar() {
                 fill={isActive ? "currentColor" : "none"}
               />
               <NavLabel show={isExpanded}>{item.label}</NavLabel>
-              {/* Pinned to the icon in both states — a badge that jumps to the
-                  far right as the panel opens reads as a glitch. */}
+              {/* Pinned to the icon in both states — a marker that jumps to
+                  the far right as the panel opens reads as a glitch. */}
+              {item.hasDot && <UnreadDot className="absolute left-7 top-1.5" />}
               {!!item.badge && (
                 <span className="absolute left-6 top-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
                   {item.badge > 9 ? "9+" : item.badge}
