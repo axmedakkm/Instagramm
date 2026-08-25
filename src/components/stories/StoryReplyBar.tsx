@@ -7,15 +7,18 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import { cn } from "@/lib/utils";
-import { conversationsApi, mediaApi } from "@/services/api";
+import { conversationsApi, mediaApi, storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import type { Story } from "@/types";
 
 /**
- * Instagram implements story "likes" and replies the same way under the
- * hood: both just send a direct message to the story's author. There's no
- * dedicated story-like endpoint on this backend, so a heart tap sends a
- * "❤️" DM — same mechanism as a text reply or a recorded voice note.
+ * Instagram implements story replies (text, voice) as a direct message to
+ * the story's author, and this backend does the same — so those just send a
+ * DM. A "like" (heart tap) is different: it *also* sends the "❤️" DM (same
+ * as before, so it still shows up as an activity in the author's inbox), but
+ * now additionally calls the real `POST /stories/:id/like` so it's counted
+ * — that's what powers the like count shown in the story archive
+ * (`/settings/archive`).
  */
 function useStoryReply(story: Story) {
   const queryClient = useQueryClient();
@@ -38,6 +41,22 @@ function useStoryReply(story: Story) {
   });
 }
 
+function useStoryLike(story: Story) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => storiesApi.like(story.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.stories.byUser(story.author.id),
+      });
+    },
+    // Best-effort — the DM heart already went through, so don't surface a
+    // second error toast for the count just not being incremented.
+  });
+}
+
 export function StoryReplyBar({
   story,
   onActivityChange,
@@ -49,6 +68,7 @@ export function StoryReplyBar({
   const [justLiked, setJustLiked] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const reply = useStoryReply(story);
+  const like = useStoryLike(story);
   const recorder = useVoiceRecorder();
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -75,6 +95,7 @@ export function StoryReplyBar({
     if (reply.isPending) return;
     setJustLiked(true);
     reply.mutate({ text: "❤️" });
+    like.mutate();
     setTimeout(() => setJustLiked(false), 900);
   };
 
