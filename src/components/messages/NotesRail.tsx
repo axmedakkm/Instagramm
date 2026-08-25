@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Music, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { StoryRing } from "@/components/feed/StoryRing";
 import { NoteComposerModal } from "@/components/messages/NoteComposerModal";
+import { NoteBubble } from "@/components/shared/NoteBubble";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
@@ -47,32 +48,15 @@ export function NotesRail() {
       >
         {/* The bubble. It always renders — with your note in it, or a muted
             "Note" prompt — so the avatar never shifts up and down. */}
-        <span
-          className={
-            activeNote
-              ? "relative w-full rounded-2xl bg-secondary px-2 py-1.5 text-[10px] font-medium leading-tight text-secondary-foreground"
-              : "relative w-full rounded-2xl bg-muted px-2 py-1.5 text-[10px] leading-tight text-muted-foreground"
-          }
-        >
-          <span className="line-clamp-2 block break-words">
-            {activeNote ? activeNote.text : "Note..."}
+        {activeNote ? (
+          <NoteBubble note={activeNote} />
+        ) : (
+          <span className="relative block w-full rounded-2xl bg-muted px-2 py-1.5 text-[10px] leading-tight text-muted-foreground">
+            <span className="line-clamp-2 block break-words">Note...</span>
+            {/* Little tail pointing down at the avatar. */}
+            <span className="absolute -bottom-[3px] left-1/2 size-2 -translate-x-1/2 rotate-45 rounded-[1px] bg-muted" />
           </span>
-
-          {/* Music line, only when a song is attached. */}
-          {activeNote?.music && (
-            <span className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
-              <Music className="size-2.5 shrink-0" />
-              <span className="truncate">{activeNote.music.title}</span>
-            </span>
-          )}
-
-          {/* Little tail pointing down at the avatar. */}
-          <span
-            className={`absolute -bottom-[3px] left-1/2 size-2 -translate-x-1/2 rotate-45 rounded-[1px] ${
-              activeNote ? "bg-secondary" : "bg-muted"
-            }`}
-          />
-        </span>
+        )}
 
         <span className="relative">
           <StoryRing
