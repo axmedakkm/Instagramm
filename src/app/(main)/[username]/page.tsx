@@ -3,6 +3,7 @@
 import { Grid3x3, Lock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { use } from "react";
+import { HighlightsRow } from "@/components/profile/HighlightsRow";
 import { ProfileGrid } from "@/components/profile/ProfileGrid";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
@@ -44,6 +45,10 @@ export default function ProfilePage({
   return (
     <div className="mx-auto w-full max-w-4xl">
       <ProfileHeader profile={profile} />
+
+      {/* Highlights sit between the header and the tab strip, the way they do
+          on Instagram. Owner-only while they're stored locally. */}
+      {!isLocked && <HighlightsRow isOwner={isOwner} />}
 
       {/* The uppercase tab strip. Only "Posts" exists because the grid below
           only lists posts — no fake tabs. There's no full-width rule: the

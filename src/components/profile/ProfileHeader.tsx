@@ -1,7 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Link2, Loader2, Lock, Menu, MoreHorizontal } from "lucide-react";
+import {
+  Ban,
+  ImagePlus,
+  Link2,
+  Loader2,
+  Lock,
+  Menu,
+  MoreHorizontal,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -20,6 +28,7 @@ import {
 import { conversationsApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useUIStore } from "@/store/useUIStore";
 import type { User } from "@/types";
 
 export function ProfileHeader({ profile }: { profile: User }) {
@@ -27,6 +36,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const isOwner = currentUser?.id === profile.id;
+  const openCreatePost = useUIStore((state) => state.openCreatePost);
   const [openList, setOpenList] = useState<"followers" | "following" | null>(
     null,
   );
@@ -196,13 +206,25 @@ export function ProfileHeader({ profile }: { profile: User }) {
       {/* Actions, full width along the bottom of the header. */}
       <div className="mt-5 flex gap-2">
         {isOwner ? (
-          <Button
-            variant="secondary"
-            className="h-10 flex-1"
-            onClick={() => setEditOpen(true)}
-          >
-            Edit profile
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              className="h-10 flex-1"
+              onClick={() => setEditOpen(true)}
+            >
+              Edit profile
+            </Button>
+            {/* Opens the same composer the sidebar's Create button does, so
+                you can post without leaving your profile. */}
+            <Button
+              variant="secondary"
+              className="h-10 flex-1"
+              onClick={openCreatePost}
+            >
+              <ImagePlus className="size-4" />
+              New post
+            </Button>
+          </>
         ) : (
           <>
             <FollowButton user={profile} className="h-10 flex-1" />
