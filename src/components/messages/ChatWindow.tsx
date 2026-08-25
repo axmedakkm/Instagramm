@@ -225,14 +225,15 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
             </Link>
           ))}
 
-        {/* Calling is 1:1 only (see CallProvider) — no group calls, and
-            none for someone you've blocked either. */}
-        {leadOther && !isGroup && !isBlockedByMe && (
+        {/* No calling someone you've blocked. Group calls ring every other
+            member (see CallProvider) — media is a full mesh, so this stays
+            usable for a small group but isn't meant to scale past one. */}
+        {leadOther && !isBlockedByMe && (
           <div className="ml-auto flex items-center gap-1">
             <button
               type="button"
               aria-label="Start a voice call"
-              onClick={() => startCall(conversationId, "audio", leadOther)}
+              onClick={() => startCall(conversationId, "audio", others)}
               className="rounded-full p-2 transition-colors hover:bg-accent disabled:opacity-50"
               disabled={!isConnected}
             >
@@ -241,7 +242,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
             <button
               type="button"
               aria-label="Start a video call"
-              onClick={() => startCall(conversationId, "video", leadOther)}
+              onClick={() => startCall(conversationId, "video", others)}
               className="rounded-full p-2 transition-colors hover:bg-accent disabled:opacity-50"
               disabled={!isConnected}
             >
