@@ -1,26 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Music, Search, X } from "lucide-react";
+import { Loader2, Music, X } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { useDebounce } from "@/hooks/useDebounce";
 import { musicApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import type { MusicTrack } from "@/types";
 
 /**
- * Pick a song from the catalogue, with search.
+ * Pick a song for a story or a note.
  *
- * Used by both the story composer and the note composer. It owns only its own
- * throwaway UI state (the search box and whether the list is open); the chosen
- * track lives in the parent via `value` / `onChange`.
- *
- * Results come from `GET /music/search`, which the backend proxies to Apple's
- * iTunes Search API — so this is a real catalogue, not a fixed list. That's
- * also why the query is debounced: every keystroke would otherwise be a
- * request.
+ * The list comes straight from `GET /music/trending` — the backend's curated
+ * catalogue — so opening the picker shows real tracks immediately with
+ * nothing to type. Both composers use this, so a note and a story pick from
+ * exactly the same catalogue.
  */
 export function MusicPicker({
   value,
@@ -32,21 +26,14 @@ export function MusicPicker({
   label?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const debouncedQuery = useDebounce(query.trim(), 350);
 
-  const { data: tracks, isFetching, isError } = useQuery({
-    queryKey: queryKeys.music.search(debouncedQuery),
-    queryFn: () => musicApi.search(debouncedQuery),
-    enabled: isOpen && debouncedQuery.length > 0,
-    staleTime: 5 * 60 * 1000,
+  const { data: tracks, isLoading, isError } = useQuery({
+    queryKey: queryKeys.music.trending,
+    queryFn: () => musicApi.trending(),
+    // Nothing is fetched until the picker is actually opened.
+    enabled: isOpen,
+    staleTime: 10 * 60 * 1000,
   });
-
-  const handlePick = (track: MusicTrack) => {
-    onChange(track);
-    setIsOpen(false);
-    setQuery("");
-  };
 
   // A track is already chosen — show it with a remove button instead.
   if (value) {
@@ -85,61 +72,46 @@ export function MusicPicker({
       </button>
 
       {isOpen && (
-        <div className="space-y-1 pt-1">
-          {/* Search box. The icon sits over the input, which gets left
-              padding to make room for it. */}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search for a song or artist"
-              className="h-9 pl-9 pr-9"
-            />
-            {isFetching && (
-              <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-            )}
-          </div>
+        <div className="max-h-52 space-y-0.5 overflow-y-auto pt-1">
+          {isLoading && (
+            <div className="flex justify-center py-6 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          )}
 
-          <div className="max-h-52 space-y-0.5 overflow-y-auto">
-            {debouncedQuery.length === 0 && (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                Search for a song to add.
-              </p>
-            )}
+          {isError && (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              Couldn&apos;t load the music catalogue.
+            </p>
+          )}
 
-            {isError && (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                Couldn&apos;t reach the music catalogue.
-              </p>
-            )}
-
-            {tracks?.map((track) => (
-              <button
-                key={track.trackId}
-                type="button"
-                onClick={() => handlePick(track)}
-                className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent"
-              >
-                <Artwork track={track} />
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">
-                    {track.title}
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {track.artist}
-                  </span>
+          {tracks?.map((track) => (
+            <button
+              key={track.trackId}
+              type="button"
+              onClick={() => {
+                onChange(track);
+                setIsOpen(false);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent"
+            >
+              <Artwork track={track} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">
+                  {track.title}
                 </span>
-              </button>
-            ))}
+                <span className="block truncate text-xs text-muted-foreground">
+                  {track.artist}
+                </span>
+              </span>
+            </button>
+          ))}
 
-            {tracks?.length === 0 && !isFetching && (
-              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                No music matches &ldquo;{debouncedQuery}&rdquo;.
-              </p>
-            )}
-          </div>
+          {tracks?.length === 0 && (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              No music available right now.
+            </p>
+          )}
         </div>
       )}
     </div>

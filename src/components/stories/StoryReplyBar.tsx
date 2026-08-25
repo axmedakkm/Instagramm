@@ -6,8 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { conversationsApi } from "@/services/api";
-import { conversationsApi, mediaApi, storiesApi } from "@/services/api";
+import { conversationsApi, storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import type { Story } from "@/types";
 

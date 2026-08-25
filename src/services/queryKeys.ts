@@ -31,6 +31,7 @@ export const queryKeys = {
     archive: ["stories", "archive"] as const,
   },
   music: {
+    trending: ["music", "trending"] as const,
     search: (query: string) => ["music", "search", query] as const,
   },
   conversations: {
