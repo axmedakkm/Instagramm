@@ -1,11 +1,11 @@
 "use client";
 
-import { Lock } from "lucide-react";
+import { Grid3x3, Lock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { use } from "react";
 import { ProfileGrid } from "@/components/profile/ProfileGrid";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
-import { Separator } from "@/components/ui/separator";
+import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -24,7 +24,7 @@ export default function ProfilePage({
   });
 
   if (isLoading) {
-    return <div className="px-4 py-8 text-sm text-muted-foreground">Loading profile...</div>;
+    return <ProfileSkeleton />;
   }
 
   if (!profile) {
@@ -44,7 +44,19 @@ export default function ProfilePage({
   return (
     <div className="mx-auto w-full max-w-4xl">
       <ProfileHeader profile={profile} />
-      <Separator />
+
+      {/* The uppercase tab strip. Only "Posts" exists because the grid below
+          only lists posts — no fake tabs. There's no full-width rule: the
+          short underline under the label is enough to mark the section. */}
+      {!isLocked && (
+        <div className="flex justify-center">
+          <div className="flex items-center gap-2 border-b-2 border-foreground px-5 py-3 text-xs font-semibold uppercase tracking-widest">
+            <Grid3x3 className="size-3.5" />
+            Posts
+          </div>
+        </div>
+      )}
+
       <div className="pt-4">
         {isLocked ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">

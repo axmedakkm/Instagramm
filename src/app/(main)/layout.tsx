@@ -18,7 +18,10 @@ export default function MainLayout({
         <CallProvider>
           <div className="flex min-h-screen w-full">
             <Sidebar />
-            <div className="flex w-full flex-1 flex-col pb-14 lg:ml-[72px] lg:pb-0 xl:ml-64">
+            {/* The margin matches the sidebar's *collapsed* width and never
+                changes. The expanded sidebar floats over the content instead
+                of pushing it, so hovering the nav doesn't reflow the page. */}
+            <div className="flex w-full flex-1 flex-col pb-14 lg:ml-[72px] lg:pb-0">
               {children}
             </div>
             <MobileNav />

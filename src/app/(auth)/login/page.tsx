@@ -2,12 +2,13 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
-import { Camera, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { BrandMark } from "@/components/shared/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,9 +55,7 @@ export default function LoginPage() {
     <div className="w-full max-w-sm space-y-4">
       <div className="brand-glow enter-pop glass rounded-2xl border border-border/60 px-10 py-12 shadow-float">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <span className="brand-glow grid size-16 place-items-center rounded-2xl bg-background/60 shadow-lifted">
-            <Camera className="size-8" strokeWidth={1.75} />
-          </span>
+          <BrandMark className="size-16 shadow-lifted rounded-2xl" />
           <h1 className="brand-gradient text-4xl font-bold tracking-tight">
             Instagramm
           </h1>

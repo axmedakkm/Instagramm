@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { SquarePen } from "lucide-react";
+import { Search, SquarePen, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { NewMessageModal } from "@/components/messages/NewMessageModal";
+import { NotesRail } from "@/components/messages/NotesRail";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { conversationsApi } from "@/services/api";
@@ -26,6 +28,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const pathname = usePathname();
   const currentUser = useAuthStore((state) => state.user);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.conversations.list,
@@ -33,7 +36,19 @@ export function ConversationList({ activeId }: { activeId?: string }) {
     refetchInterval: 5000,
   });
 
-  const conversations = data?.items ?? [];
+  const allConversations = data?.items ?? [];
+
+  // Filter locally on username / full name. The whole list is already in
+  // memory, so there's no request to debounce here — unlike the Explore
+  // search, which hits the server on every change.
+  const query = search.trim().toLowerCase();
+  const conversations = allConversations.filter((conversation) => {
+    const other = otherParticipant(conversation, currentUser?.id);
+    return (
+      other.username.toLowerCase().includes(query) ||
+      other.fullName.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="flex h-full flex-col">
@@ -50,6 +65,33 @@ export function ConversationList({ activeId }: { activeId?: string }) {
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* Search. Filters the list below as you type. */}
+        <div className="px-4 pb-3 pt-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search"
+              className="rounded-lg border-transparent bg-muted pl-9 pr-9 shadow-none"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <NotesRail />
+
+        <p className="px-4 pb-1 pt-2 text-sm font-semibold">Messages</p>
+
         {isLoading &&
           Array.from({ length: 6 }).map((_, index) => (
             <div key={index} className="flex items-center gap-3 px-4 py-3">
@@ -61,7 +103,9 @@ export function ConversationList({ activeId }: { activeId?: string }) {
             </div>
           ))}
 
-        {!isLoading && conversations.length === 0 && (
+        {/* Two different "nothing here" cases: an empty inbox, and a search
+            that matched nothing. They need different wording. */}
+        {!isLoading && allConversations.length === 0 && (
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
             <p className="text-sm text-muted-foreground">
               No conversations yet.
@@ -75,6 +119,14 @@ export function ConversationList({ activeId }: { activeId?: string }) {
             </button>
           </div>
         )}
+
+        {!isLoading &&
+          allConversations.length > 0 &&
+          conversations.length === 0 && (
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+              No chats match &ldquo;{search.trim()}&rdquo;.
+            </p>
+          )}
 
         {conversations.map((conversation) => {
           const other = otherParticipant(conversation, currentUser?.id);

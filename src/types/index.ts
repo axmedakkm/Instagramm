@@ -88,12 +88,29 @@ export interface Comment {
   createdAt: string;
 }
 
+/**
+ * A song from `GET /music/search`. The backend proxies Apple's iTunes Search
+ * API and normalises each row into this shape, so the frontend never sees
+ * Apple's own field names. `previewUrl` is a ~30s clip.
+ */
+export interface MusicTrack {
+  trackId: string;
+  title: string;
+  artist: string;
+  album?: string;
+  artworkUrl: string | null;
+  previewUrl: string | null;
+  durationMs?: number | null;
+}
+
 export interface Story {
   id: string;
   author: UserSummary;
   mediaUrl: string;
   mediaType: "image" | "video";
   caption: string;
+  /** The music sticker attached at upload time, or null. */
+  music: MusicTrack | null;
   viewsCount: number;
   isViewedByMe: boolean;
   likesCount: number;

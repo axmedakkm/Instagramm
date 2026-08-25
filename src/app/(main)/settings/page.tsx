@@ -77,6 +77,16 @@ export default function SettingsPage() {
 
         <button
           type="button"
+          onClick={() => router.push("/settings/archive")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Archive className="size-5" />
+          Archive
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
           onClick={() => router.push("/settings/theme")}
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >

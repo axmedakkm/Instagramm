@@ -13,25 +13,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MusicPicker } from "@/components/shared/MusicPicker";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useStoryArchiveStore } from "@/store/useStoryArchiveStore";
 import { useUIStore } from "@/store/useUIStore";
+import type { MusicTrack } from "@/types";
 
 export function CreateStoryModal() {
   const isOpen = useUIStore((state) => state.isCreateStoryOpen);
   const close = useUIStore((state) => state.closeCreateStory);
   const currentUser = useAuthStore((state) => state.user);
+  const addToArchive = useStoryArchiveStore((state) => state.add);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [music, setMusic] = useState<MusicTrack | null>(null);
 
   const resetForm = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setFile(null);
     setPreviewUrl(null);
+    setMusic(null);
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -50,9 +56,13 @@ export function CreateStoryModal() {
   };
 
   const mutation = useMutation({
-    mutationFn: () => storiesApi.create(file as File),
-    onSuccess: () => {
+    mutationFn: () => storiesApi.create(file as File, music),
+    onSuccess: (createdStory) => {
       toast.success("Your story was shared!");
+      // Save a copy to the local archive so it's still here after the story
+      // expires in 24h. The music comes back on `createdStory` already — the
+      // backend persists it — so there's nothing to stitch in.
+      addToArchive(createdStory);
       queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
       // The stories bar's "Your story" ring reads this key to know you
       // have an active story — without invalidating it too, the ring
@@ -122,6 +132,15 @@ export function CreateStoryModal() {
               >
                 <X className="size-3.5" />
               </button>
+            </div>
+          )}
+
+          {/* Music picker. Only useful once there's a story to attach it to.
+              The picker itself (search + track list) is shared with the note
+              composer — see MusicPicker. */}
+          {file && (
+            <div className="mt-4 border-t border-border pt-4">
+              <MusicPicker value={music} onChange={setMusic} />
             </div>
           )}
         </div>

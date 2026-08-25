@@ -30,6 +30,9 @@ export const queryKeys = {
     viewers: (storyId: string) => ["stories", "viewers", storyId] as const,
     archive: ["stories", "archive"] as const,
   },
+  music: {
+    search: (query: string) => ["music", "search", query] as const,
+  },
   conversations: {
     list: ["conversations"] as const,
     messages: (conversationId: string) =>
