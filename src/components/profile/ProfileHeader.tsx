@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Menu } from "lucide-react";
+import { Link2, Loader2, Lock, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,7 +9,6 @@ import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
 import { UserAvatar } from "@/components/shared/UserAvatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { conversationsApi } from "@/services/api";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -31,80 +30,107 @@ export function ProfileHeader({ profile }: { profile: User }) {
   });
 
   return (
-    <header className="flex flex-col gap-6 px-4 py-8 sm:flex-row sm:items-center sm:gap-10">
-      <div className="mx-auto shrink-0 rounded-full bg-[conic-gradient(from_180deg_at_50%_50%,#f9ce34_0deg,#ee2a7b_120deg,#6228d7_240deg,#f9ce34_360deg)] p-[3px] shadow-lifted transition-transform duration-300 ease-spring hover:scale-[1.03] sm:mx-0">
-        <div className="rounded-full bg-background p-[3px]">
-          <UserAvatar user={profile} size="xl" className="size-24 sm:size-36" />
+    <header className="px-4 pb-6 pt-6 sm:pt-8">
+      {/* Top row: avatar on the left, everything else in a column beside it. */}
+      <div className="flex gap-4 sm:gap-6">
+        <UserAvatar
+          user={profile}
+          size="xl"
+          className="size-20 shrink-0 sm:size-28"
+        />
+
+        <div className="min-w-0 flex-1">
+          {/* Username + burger. The burger is pushed to the far right of the
+              header, level with the username. */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold tracking-tight">
+                {profile.username}
+              </h1>
+              {profile.fullName && (
+                <p className="truncate text-sm text-muted-foreground">
+                  {profile.fullName}
+                </p>
+              )}
+            </div>
+
+            {isOwner && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Settings"
+                className="-mr-1 shrink-0 rounded-full"
+                onClick={() => router.push("/settings")}
+              >
+                <Menu className="size-6" />
+              </Button>
+            )}
+          </div>
+
+          {/* Stats, inline. `flex-wrap` lets them drop to a second line on a
+              narrow phone instead of overflowing. */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Stat value={profile.postsCount} label="posts" />
+            <Stat
+              value={profile.followersCount}
+              label="followers"
+              onClick={() => setOpenList("followers")}
+            />
+            <Stat
+              value={profile.followingCount}
+              label="following"
+              onClick={() => setOpenList("following")}
+            />
+          </div>
+
+          {profile.bio && (
+            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">
+              {profile.bio}
+            </p>
+          )}
+
+          {/* Website, and a quiet "Private" marker for locked accounts — the
+              marker used to sit next to the username, which is now kept clear. */}
+          {(profile.website || profile.isPrivate) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              {profile.website && (
+                <a
+                  href={profile.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 font-medium text-primary transition-opacity hover:opacity-80"
+                >
+                  <Link2 className="size-4" />
+                  {profile.website.replace(/^https?:\/\//, "")}
+                </a>
+              )}
+              {profile.isPrivate && (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <Lock className="size-3.5" />
+                  Private
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-xl">{profile.username}</h1>
-          {profile.isVerified && <Badge variant="secondary">Verified</Badge>}
-          {profile.isPrivate && <Badge variant="outline">Private</Badge>}
-          {isOwner && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Settings"
-              className="size-8"
-              onClick={() => router.push("/settings")}
-            >
-              <Menu className="size-5" />
-            </Button>
-          )}
-        </div>
-
-        <div className="flex gap-8 text-sm">
-          <p>
-            <span className="font-semibold">{profile.postsCount}</span> posts
-          </p>
-          <button type="button" onClick={() => setOpenList("followers")}>
-            <span className="font-semibold">{profile.followersCount}</span>{" "}
-            followers
-          </button>
-          <button type="button" onClick={() => setOpenList("following")}>
-            <span className="font-semibold">{profile.followingCount}</span>{" "}
-            following
-          </button>
-        </div>
-
-        <div className="space-y-0.5 text-sm">
-          <p className="font-semibold">{profile.fullName}</p>
-          {profile.bio && <p className="whitespace-pre-line">{profile.bio}</p>}
-          {profile.website && (
-            <a
-              href={profile.website}
-              target="_blank"
-              rel="noreferrer"
-              className="font-semibold text-primary"
-            >
-              {profile.website.replace(/^https?:\/\//, "")}
-            </a>
-          )}
-        </div>
-
-        {isOwner && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              className="flex-1 sm:flex-none"
-              onClick={() => setEditOpen(true)}
-            >
-              Edit profile
-            </Button>
-          </div>
-        )}
-
-        {!isOwner && (
-          <div className="flex flex-wrap items-center gap-2">
-            <FollowButton user={profile} className="flex-1 sm:flex-none" />
+      {/* Actions, full width along the bottom of the header. */}
+      <div className="mt-5 flex gap-2">
+        {isOwner ? (
+          <Button
+            variant="secondary"
+            className="h-10 flex-1"
+            onClick={() => setEditOpen(true)}
+          >
+            Edit profile
+          </Button>
+        ) : (
+          <>
+            <FollowButton user={profile} className="h-10 flex-1" />
             <Button
               variant="secondary"
-              size="sm"
-              className="flex-1 sm:flex-none"
+              className="h-10 flex-1"
               onClick={() => startConversation.mutate()}
               disabled={startConversation.isPending}
             >
@@ -113,7 +139,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
               )}
               Message
             </Button>
-          </div>
+          </>
         )}
       </div>
 
@@ -136,4 +162,55 @@ export function ProfileHeader({ profile }: { profile: User }) {
       )}
     </header>
   );
+}
+
+/**
+ * One inline stat, e.g. "206 followers". With `onClick` it's a button
+ * (followers / following open a list); without one it's a plain span (posts
+ * isn't clickable). Numbers use tabular figures so they don't twitch as the
+ * counts change.
+ */
+function Stat({
+  value,
+  label,
+  onClick,
+}: {
+  value: number;
+  label: string;
+  onClick?: () => void;
+}) {
+  const inner = (
+    <>
+      <span className="font-semibold tabular-nums">{formatCount(value)}</span>{" "}
+      <span className="text-muted-foreground">{label}</span>
+    </>
+  );
+
+  const className = "rounded-md py-0.5 text-sm";
+
+  if (!onClick) {
+    return <span className={className}>{inner}</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${className} transition-opacity duration-200 ease-smooth hover:opacity-70 active:scale-[0.97]`}
+    >
+      {inner}
+    </button>
+  );
+}
+
+/** 999 → "999", 8_200 → "8.2K", 12_000 → "12K", 1_500_000 → "1.5M". */
+function formatCount(value: number) {
+  if (value < 1000) return String(value);
+  if (value < 1_000_000) return `${oneDecimal(value / 1000)}K`;
+  return `${oneDecimal(value / 1_000_000)}M`;
+}
+
+/** 8.24 → "8.2", but 12.0 → "12" (no pointless trailing zero). */
+function oneDecimal(value: number) {
+  return value.toFixed(1).replace(/\.0$/, "");
 }

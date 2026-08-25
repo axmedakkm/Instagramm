@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, X } from "lucide-react";
+import { Eye, Music, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +12,7 @@ import { TimeAgo } from "@/components/shared/TimeAgo";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useStoryArchiveStore } from "@/store/useStoryArchiveStore";
 import type { StoryGroup } from "@/types";
 
 const STORY_DURATION_MS = 5000;
@@ -19,7 +20,9 @@ const STORY_DURATION_MS = 5000;
 export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
+  const archivedStories = useStoryArchiveStore((state) => state.stories);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const { data: storyGroups } = useQuery({
     queryKey: queryKeys.stories.feed,
@@ -60,6 +63,8 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const currentGroup = groups[groupIndex];
   const currentStory = currentGroup?.stories[storyIndex];
   const isOwnStory = !!currentUser && currentGroup?.user.id === currentUser.id;
+  // Music only exists for your own stories, saved locally when you posted them.
+  const music = archivedStories.find((s) => s.id === currentStory?.id)?.music;
 
   const close = () => router.push("/feed");
 
@@ -139,6 +144,15 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
     else video.play().catch(() => {});
   }, [isPaused, currentStory]);
 
+  // Keep the story's music in step with the pause state (and stop it when the
+  // story changes to one without music).
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPaused) audio.pause();
+    else audio.play().catch(() => {});
+  }, [isPaused, currentStory, music]);
+
   if (!currentGroup || !currentStory) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-black text-white">
@@ -216,6 +230,28 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             className="object-contain"
             preload
           />
+        )}
+
+        {music && (
+          <>
+            {/* Loops for the whole time this story is on screen. Keyed by story
+                id so switching stories restarts the track from the top. */}
+            <audio
+              key={currentStory.id}
+              ref={audioRef}
+              src={music.previewUrl}
+              autoPlay
+              loop
+            />
+            <div className="absolute inset-x-3 bottom-16 z-20 flex justify-center">
+              <span className="flex max-w-[80%] items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white backdrop-blur">
+                <Music className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  {music.title} · {music.artist}
+                </span>
+              </span>
+            </div>
+          </>
         )}
 
         <button
