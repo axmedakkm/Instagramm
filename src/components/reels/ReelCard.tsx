@@ -105,11 +105,13 @@ export function ReelCard({
   return (
     <section
       ref={sectionRef}
-      className="flex h-screen w-full snap-start items-center justify-center bg-black px-3"
+      className="flex h-screen w-full snap-start items-center justify-center bg-background px-3"
     >
       {/* Video and rail sit side by side, both aligned to the bottom edge. */}
       <div className="flex h-full max-h-[94vh] items-end gap-3 py-4">
-        <div className="relative h-full overflow-hidden rounded-2xl bg-neutral-900 [aspect-ratio:9/16]">
+        {/* The frame stays dark in both themes — it's the letterbox behind the
+            video, and a light bar around a video reads as a rendering bug. */}
+        <div className="relative h-full overflow-hidden rounded-2xl bg-neutral-900 shadow-float [aspect-ratio:9/16]">
           {post.mediaType === "video" ? (
             <video
               ref={videoRef}
