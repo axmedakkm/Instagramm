@@ -2,17 +2,29 @@
 
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
 import { useEffect, useRef } from "react";
+import type { RemoteParticipant } from "@/components/providers/CallProvider";
 import { useCall } from "@/components/providers/CallProvider";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { cn } from "@/lib/utils";
+
+/** `grid-cols`/`grid-rows` that keep tiles roughly square for a given
+ * headcount — 1 fills the screen, 2 stacks, 3-4 is a 2x2, beyond that just
+ * keeps adding columns (this mesh isn't meant to scale past a handful). */
+function gridClassFor(count: number) {
+  if (count <= 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-1 grid-rows-2 sm:grid-cols-2 sm:grid-rows-1";
+  if (count <= 4) return "grid-cols-2 grid-rows-2";
+  return "grid-cols-2 grid-rows-3";
+}
 
 export function CallOverlay() {
   const {
     status,
     callType,
     peer,
+    isGroup,
     localStream,
-    remoteStream,
+    remoteParticipants,
     isMuted,
     isCameraOff,
     callDuration,
@@ -24,17 +36,10 @@ export function CallOverlay() {
   } = useCall();
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
   }, [localStream, status]);
-
-  useEffect(() => {
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStream;
-  }, [remoteStream, status]);
 
   if (status === "idle" || !peer) return null;
 
@@ -47,32 +52,38 @@ export function CallOverlay() {
   // label only covers the pre-connection states.
   const statusLabel =
     status === "ringing"
-      ? `Incoming ${isVideo ? "video" : "voice"} call`
+      ? `Incoming ${isVideo ? "video" : "voice"}${isGroup ? " group" : ""} call`
       : status === "calling"
         ? "Calling…"
         : status === "connecting"
           ? "Connecting…"
           : "";
-
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-between bg-neutral-950 text-white">
-      {/* Remote video fills the screen for a connected video call. */}
-      {isVideo && isConnected && (
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          className="absolute inset-0 size-full object-cover"
-        />
+      {/* Connected: one tile per participant, video if they have it. */}
+      {isConnected && (
+        <div
+          className={cn(
+            "absolute inset-0 grid gap-0.5",
+            gridClassFor(remoteParticipants.length),
+          )}
+        >
+          {remoteParticipants.map((participant) => (
+            <RemoteTile
+              key={participant.user.id}
+              participant={participant}
+              showVideo={isVideo}
+            />
+          ))}
+        </div>
       )}
-      {/* Audio sink — needed for voice calls and as a fallback for video. */}
-      <audio ref={remoteAudioRef} autoPlay className="hidden" />
 
       {/* Duration badge — pinned to the top so it stays visible even once
        * the peer identity block fades out behind a connected video call. */}
       {isConnected && (
         <p className="glass-media z-10 mt-4 rounded-full px-3.5 py-1 text-sm tabular-nums text-white/90 ring-1 ring-white/15">
           {durationLabel}
+          {remoteParticipants.length > 1 && ` · ${remoteParticipants.length + 1} people`}
         </p>
       )}
 
@@ -90,28 +101,24 @@ export function CallOverlay() {
         />
       )}
 
-      {/* Caller/peer identity — shown until a video stream covers it. */}
-      <div
-        className={cn(
-          "z-10 flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center transition-opacity duration-500 ease-smooth",
-          isVideo && isConnected && "pointer-events-none opacity-0",
-        )}
-      >
-        <UserAvatar
-          user={peer}
-          size="xl"
-          className={cn(
-            "size-28 shadow-float ring-2 ring-white/30",
-            !isConnected && "animate-pulse",
-          )}
-        />
-        <div>
-          <p className="text-2xl font-semibold">{peer.username}</p>
-          {statusLabel && (
-            <p className="mt-1 text-sm text-white/70">{statusLabel}</p>
-          )}
+      {/* Caller/peer identity — the pre-connect screen only. Once connected,
+       * each participant's own tile (video or avatar) in the grid above
+       * covers this exact information per person instead. */}
+      {!isConnected && (
+        <div className="z-10 flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+          <UserAvatar
+            user={peer}
+            size="xl"
+            className="size-28 animate-pulse shadow-float ring-2 ring-white/30"
+          />
+          <div>
+            <p className="text-2xl font-semibold">{peer.username}</p>
+            {statusLabel && (
+              <p className="mt-1 text-sm text-white/70">{statusLabel}</p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Controls */}
       <div className="glass-media z-10 mb-12 flex items-center gap-4 rounded-full px-5 py-3 ring-1 ring-white/15">
@@ -179,6 +186,45 @@ export function CallOverlay() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** One connected participant's tile — their video if the call has any and
+ * they're sending one, an avatar card otherwise (voice call, or their camera
+ * is off). Audio always plays regardless, via the hidden sink below. */
+function RemoteTile({
+  participant,
+  showVideo,
+}: {
+  participant: RemoteParticipant;
+  showVideo: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const hasVideoTrack = !!participant.stream?.getVideoTracks().some((t) => t.enabled);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = participant.stream;
+    if (audioRef.current) audioRef.current.srcObject = participant.stream;
+  }, [participant.stream]);
+
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden bg-neutral-900">
+      {showVideo && hasVideoTrack ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="size-full object-cover"
+        />
+      ) : (
+        <UserAvatar user={participant.user} size="xl" className="size-20" />
+      )}
+      <audio ref={audioRef} autoPlay className="hidden" />
+      <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-xs font-medium backdrop-blur">
+        {participant.user.username}
+      </span>
     </div>
   );
 }

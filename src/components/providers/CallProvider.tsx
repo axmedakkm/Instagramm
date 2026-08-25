@@ -20,12 +20,25 @@ export type { CallType };
 /** idle → (caller) calling → connecting → in-call. (callee) ringing → connecting → in-call. */
 export type CallStatus = "idle" | "calling" | "ringing" | "connecting" | "in-call";
 
+/** One other person currently connected in the call, and their media. */
+export interface RemoteParticipant {
+  user: UserSummary;
+  stream: MediaStream | null;
+}
+
 interface CallContextValue {
   status: CallStatus;
   callType: CallType | null;
+  /** Who's ringing you (callee) or who you rang (caller) — display identity
+   * for the pre-connect screen. For a group call this is just whoever's
+   * relevant to that event, not the full roster; once connected, read
+   * `remoteParticipants` instead. */
   peer: UserSummary | null;
+  isGroup: boolean;
   localStream: MediaStream | null;
-  remoteStream: MediaStream | null;
+  /** Everyone actually connected right now — one entry per open
+   * RTCPeerConnection, so length 1 for a normal 1:1 call. */
+  remoteParticipants: RemoteParticipant[];
   isMuted: boolean;
   isCameraOff: boolean;
   /** Seconds since the call connected — 0 until `status` is "in-call". */
@@ -33,7 +46,7 @@ interface CallContextValue {
   startCall: (
     conversationId: string,
     callType: CallType,
-    peer: UserSummary,
+    peers: UserSummary[],
   ) => void;
   acceptCall: () => void;
   rejectCall: () => void;
@@ -51,26 +64,42 @@ interface SignalData {
 }
 
 interface Session {
-  /** Minted by the server's `call:initiate` ack and relayed to the callee in
-   * `call:incoming` — the one id both peers share, so every socket relay
-   * (accept/reject/end/signal) is addressed by it. */
+  /** Minted by the server's `call:initiate` ack and relayed to everyone else
+   * in `call:incoming` — the one id every socket relay (accept/reject/end/
+   * signal) is addressed by. */
   signalId: string;
   /** Prisma id of the persisted `calls` row. Only the caller ever learns it
-   * (it comes back from `POST /chats/:id/calls`, and the server does not put
-   * it in `call:incoming`), so the caller writes every REST status update —
-   * for the callee, and for a caller whose row failed to write, it is null. */
+   * (it comes back from `POST /chats/:id/calls`), so the caller writes every
+   * REST status update — for a callee, and for a caller whose row failed to
+   * write, it stays null. */
   recordId: string | null;
   /** Set when `call:accepted` arrives before the history row does, so the
    * "answered" write can be replayed once `recordId` shows up. */
   acceptedBeforeRecord?: boolean;
+  /** Whether the REST row has already been marked "ongoing" — only the
+   * *first* accept should do that, group calls fire `call:accepted` again
+   * for every later joiner. */
+  answered?: boolean;
   conversationId: string;
   role: "caller" | "callee";
   callType: CallType;
+  /** More than one other participant was rung. Only changes how a reject
+   * is handled — a decline in a group call doesn't end it for everyone
+   * else still ringing or already connected. */
+  isGroup: boolean;
 }
 
 interface InitiateAck {
   ok: boolean;
   callId?: string;
+  message?: string;
+}
+
+interface AcceptAck {
+  ok: boolean;
+  /** Who's already in the call — join each of them by sending an offer;
+   * they won't send one to you first (see insta_Back's socket/calls.js). */
+  participants?: UserSummary[];
   message?: string;
 }
 
@@ -120,14 +149,19 @@ function describeCallOutcome(
 }
 
 /**
- * Owns 1:1 WebRTC audio/video calls. Call lifecycle (start/answer/end) goes
- * through the REST `/chats/:chatId/calls` + `/calls/:callId/{answer,end}`
- * endpoints, which persist the call record; the backend relays the
- * corresponding "call:incoming" / "call:accepted" / "call:rejected" /
- * "call:ended" notifications to the other participant over the "/chat"
- * socket. The SDP/ICE exchange itself still flows over that same socket
- * ("call:signal") — only the media flows peer-to-peer. Mount once inside
- * `SocketProvider` and read with `useCall()`.
+ * Owns WebRTC audio/video calls — 1:1 or group. With N people, media is a
+ * full mesh: this client holds one RTCPeerConnection per *other* connected
+ * participant, all sharing the same local stream. Call lifecycle
+ * (start/answer/end) goes through the REST `/chats/:chatId/calls` +
+ * `/calls/:callId/{answer,end}` endpoints, which persist one history row per
+ * call regardless of how many people join it; the backend relays
+ * "call:incoming" / "call:accepted" / "call:rejected" / "call:peer-left" /
+ * "call:ended" over the "/chat" socket. The SDP/ICE exchange itself flows
+ * over that same socket ("call:signal", routed to one target at a time) —
+ * only the media flows peer-to-peer. Whoever *joins* a call always sends the
+ * offer to everyone already in it (never the other way around), which is
+ * what keeps two people from racing to offer each other at once. Mount once
+ * inside `SocketProvider` and read with `useCall()`.
  */
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { socket } = useSocket();
@@ -136,16 +170,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<CallStatus>("idle");
   const [callType, setCallType] = useState<CallType | null>(null);
   const [peer, setPeer] = useState<UserSummary | null>(null);
+  const [isGroup, setIsGroup] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteParticipants, setRemoteParticipants] = useState<
+    RemoteParticipant[]
+  >([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
 
   const sessionRef = useRef<Session | null>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const pcsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const streamsRef = useRef<Map<string, MediaStream>>(new Map());
+  const rosterRef = useRef<Map<string, UserSummary>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
-  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(
+    new Map(),
+  );
   // Mirror `status`/`callDuration` into refs so socket handlers and
   // callbacks below can read the *current* value without needing them as
   // effect/callback dependencies (which would tear down and re-attach the
@@ -168,8 +209,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     [socket],
   );
 
+  const syncRemoteParticipants = useCallback(() => {
+    setRemoteParticipants(
+      Array.from(rosterRef.current.entries()).map(([id, user]) => ({
+        user,
+        stream: streamsRef.current.get(id) ?? null,
+      })),
+    );
+  }, []);
+
   /** `call:initiate` is the only call event whose ack we need — it carries
-   * the shared call id, and it is what actually rings the other side. */
+   * the shared call id, and it is what actually rings everyone else. */
   const initiateOverSocket = useCallback(
     (conversationId: string, type: CallType) =>
       new Promise<string>((resolve, reject) => {
@@ -219,38 +269,43 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     [queryClient],
   );
 
+  /** Closes and forgets one peer's connection — the shared local tracks are
+   * *not* touched, since they're also feeding every other open connection in
+   * a group call. Only `cleanup()` (leaving the call entirely) stops them. */
+  const removePeerConnection = useCallback(
+    (userId: string) => {
+      const pc = pcsRef.current.get(userId);
+      if (pc) {
+        pc.onicecandidate = null;
+        pc.ontrack = null;
+        pc.onconnectionstatechange = null;
+        pc.close();
+      }
+      pcsRef.current.delete(userId);
+      streamsRef.current.delete(userId);
+      rosterRef.current.delete(userId);
+      pendingCandidatesRef.current.delete(userId);
+      syncRemoteParticipants();
+    },
+    [syncRemoteParticipants],
+  );
+
   const cleanup = useCallback(() => {
-    const pc = pcRef.current;
-    if (pc) {
-      // Detach every handler before closing so a late-firing event (e.g.
-      // `onconnectionstatechange` reacting to our own `close()` call below)
-      // can't re-enter this teardown or touch state after we've moved on.
-      pc.onicecandidate = null;
-      pc.ontrack = null;
-      pc.onconnectionstatechange = null;
-      pc.getSenders().forEach((sender) => {
-        try {
-          sender.track?.stop();
-        } catch {
-          /* noop */
-        }
-      });
-      pc.close();
+    for (const userId of Array.from(pcsRef.current.keys())) {
+      removePeerConnection(userId);
     }
-    pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
-    pendingCandidatesRef.current = [];
     sessionRef.current = null;
     setLocalStream(null);
-    setRemoteStream(null);
     setStatus("idle");
     setCallType(null);
     setPeer(null);
+    setIsGroup(false);
     setIsMuted(false);
     setIsCameraOff(false);
     setCallDuration(0);
-  }, []);
+  }, [removePeerConnection]);
 
   const getMedia = useCallback(async (type: CallType) => {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -262,25 +317,31 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     return stream;
   }, []);
 
-  const createPeerConnection = useCallback(
-    (stream: MediaStream) => {
+  /** Opens a connection to one remote participant and starts forwarding our
+   * local tracks to them — used both when *we're* the one joining (offering
+   * to everyone already in the call) and when we receive someone else's
+   * offer (we just haven't built their connection yet). */
+  const createPeerConnectionFor = useCallback(
+    (remoteUser: UserSummary, conversationId: string, callId: string) => {
       const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      localStreamRef.current
+        ?.getTracks()
+        .forEach((track) => pc.addTrack(track, localStreamRef.current as MediaStream));
 
       pc.onicecandidate = (event) => {
-        const session = sessionRef.current;
-        if (event.candidate && session) {
+        if (event.candidate) {
           emit("call:signal", {
-            callId: session.signalId,
-            conversationId: session.conversationId,
+            callId,
+            conversationId,
+            to: remoteUser.id,
             data: { kind: "ice", candidate: event.candidate.toJSON() },
           });
         }
       };
 
       pc.ontrack = (event) => {
-        setRemoteStream(event.streams[0] ?? null);
+        streamsRef.current.set(remoteUser.id, event.streams[0]);
+        syncRemoteParticipants();
       };
 
       pc.onconnectionstatechange = () => {
@@ -293,38 +354,37 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           pc.connectionState === "disconnected" ||
           pc.connectionState === "closed"
         ) {
-          const session = sessionRef.current;
-          if (!session) return; // already torn down by our own cleanup()
-          if (pc.connectionState === "failed") {
-            toast.error("Call connection failed.");
-            if (session.role === "caller") {
-              logCallOutcome(session.conversationId, session.callType, "failed");
-            }
+          if (!pcsRef.current.has(remoteUser.id)) return; // already torn down
+          const wasFailed = pc.connectionState === "failed";
+          removePeerConnection(remoteUser.id);
+          if (wasFailed) {
+            toast.error(`Connection to ${remoteUser.username} failed.`);
           }
-          emit("call:end", {
-            callId: session.signalId,
-            conversationId: session.conversationId,
-          });
-          if (session.recordId) {
-            callsApi.end(session.recordId).catch(() => {
-              /* best-effort — the peer connection is already torn down */
-            });
+          // Nobody left to talk to, and we're not just idly waiting on the
+          // very first person to pick up — the call is effectively over.
+          if (
+            pcsRef.current.size === 0 &&
+            statusRef.current !== "calling" &&
+            statusRef.current !== "ringing"
+          ) {
+            endCallRef.current?.();
           }
-          cleanup();
         }
       };
 
-      pcRef.current = pc;
+      pcsRef.current.set(remoteUser.id, pc);
+      rosterRef.current.set(remoteUser.id, remoteUser);
+      syncRemoteParticipants();
       return pc;
     },
-    [emit, cleanup, logCallOutcome],
+    [emit, removePeerConnection, syncRemoteParticipants],
   );
 
-  const drainPendingCandidates = useCallback(async () => {
-    const pc = pcRef.current;
+  const drainPendingCandidates = useCallback(async (userId: string) => {
+    const pc = pcsRef.current.get(userId);
     if (!pc) return;
-    const queued = pendingCandidatesRef.current;
-    pendingCandidatesRef.current = [];
+    const queued = pendingCandidatesRef.current.get(userId) ?? [];
+    pendingCandidatesRef.current.delete(userId);
     for (const candidate of queued) {
       try {
         await pc.addIceCandidate(candidate);
@@ -335,20 +395,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const startCall = useCallback(
-    async (conversationId: string, type: CallType, targetPeer: UserSummary) => {
+    async (conversationId: string, type: CallType, peers: UserSummary[]) => {
       if (!socket) {
         toast.error("You're offline — can't start a call.");
         return;
       }
-      if (sessionRef.current) return; // already in a call
+      if (sessionRef.current || peers.length === 0) return;
 
       setCallType(type);
-      setPeer(targetPeer);
+      setPeer(peers[0]);
+      setIsGroup(peers.length > 1);
       setStatus("calling");
 
-      let stream: MediaStream;
       try {
-        stream = await getMedia(type);
+        await getMedia(type);
       } catch (error) {
         toast.error(describeMediaError(error, type));
         cleanup();
@@ -357,8 +417,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       let signalId: string;
       try {
-        // This is the part that actually rings the callee: the server relays
-        // `call:incoming` to the conversation's other participants.
+        // This is the part that actually rings everyone else: the server
+        // relays `call:incoming` to the conversation's other participants.
         signalId = await initiateOverSocket(conversationId, type);
       } catch {
         toast.error("Couldn't start the call.");
@@ -372,8 +432,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         conversationId,
         role: "caller",
         callType: type,
+        isGroup: peers.length > 1,
       };
-      createPeerConnection(stream);
+      // The caller doesn't open any connections proactively — whoever joins
+      // sends *us* the offer (see the class doc comment on directionality).
 
       // History row only. The call is already ringing by now, so failing here
       // costs a row, not the call — `recordId` stays null and the REST status
@@ -389,13 +451,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
         session.recordId = record.callId;
         if (session.acceptedBeforeRecord) {
+          session.answered = true;
           callsApi.answer(record.callId, "accept").catch(() => {});
         }
       } catch {
         /* no history row for this call */
       }
     },
-    [socket, getMedia, initiateOverSocket, createPeerConnection, cleanup],
+    [socket, getMedia, initiateOverSocket, cleanup],
   );
 
   const acceptCall = useCallback(async () => {
@@ -403,9 +466,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!session || session.role !== "callee") return;
     setStatus("connecting");
 
-    let stream: MediaStream;
     try {
-      stream = await getMedia(session.callType);
+      await getMedia(session.callType);
     } catch (error) {
       toast.error(describeMediaError(error, session.callType));
       emit("call:reject", {
@@ -416,23 +478,39 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    try {
-      createPeerConnection(stream);
-      // The caller creates the offer once it hears call:accepted, and writes
-      // the REST status update — we have no `recordId` on this side.
-      emit("call:accept", {
-        callId: session.signalId,
-        conversationId: session.conversationId,
-      });
-    } catch {
-      toast.error("Couldn't accept the call.");
-      emit("call:reject", {
-        callId: session.signalId,
-        conversationId: session.conversationId,
-      });
-      cleanup();
-    }
-  }, [emit, getMedia, createPeerConnection, cleanup]);
+    socket?.emit(
+      "call:accept",
+      { callId: session.signalId, conversationId: session.conversationId },
+      async (ack: AcceptAck) => {
+        if (!ack?.ok) {
+          toast.error("Couldn't join the call.");
+          cleanup();
+          return;
+        }
+        // We're the one joining — offer to everyone already in the call
+        // (there'll be at least the original caller).
+        for (const participant of ack.participants ?? []) {
+          const pc = createPeerConnectionFor(
+            participant,
+            session.conversationId,
+            session.signalId,
+          );
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            emit("call:signal", {
+              callId: session.signalId,
+              conversationId: session.conversationId,
+              to: participant.id,
+              data: { kind: "offer", sdp: offer },
+            });
+          } catch {
+            removePeerConnection(participant.id);
+          }
+        }
+      },
+    );
+  }, [socket, emit, getMedia, createPeerConnectionFor, removePeerConnection, cleanup]);
 
   const rejectCall = useCallback(() => {
     const session = sessionRef.current;
@@ -464,6 +542,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     cleanup();
   }, [emit, cleanup, logCallOutcome]);
 
+  // `createPeerConnectionFor`'s onconnectionstatechange closure is created
+  // before `endCall` exists on the first render — a ref sidesteps the
+  // ordering problem without pulling `endCall` into that callback's deps
+  // (which would tear down and rebuild every open connection's handlers
+  // whenever `endCall` itself changed identity).
+  const endCallRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    endCallRef.current = endCall;
+  }, [endCall]);
+
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -489,6 +577,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       callId: string;
       conversationId: string;
       callType: CallType;
+      isGroup: boolean;
       from: UserSummary;
     }) => {
       // Busy — auto-reject a second incoming call.
@@ -505,67 +594,71 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         conversationId: data.conversationId,
         role: "callee",
         callType: data.callType,
+        isGroup: data.isGroup,
       };
       setCallType(data.callType);
       setPeer(data.from);
+      setIsGroup(data.isGroup);
       setStatus("ringing");
     };
 
-    const onAccepted = async () => {
+    // Informational: someone (the caller, or another member) joined the
+    // call. The peer connection to them arrives separately via their offer
+    // (`call:signal`) — this is only for the REST "answered" bookkeeping and
+    // a toast, not for opening any connection ourselves.
+    const onAccepted = (data: { from: UserSummary }) => {
       const session = sessionRef.current;
-      const pc = pcRef.current;
-      if (!session || session.role !== "caller" || !pc) return;
-      setStatus("connecting");
-      // The callee accepted but cannot write the row, so we do it here — or
-      // leave a note for startCall if the row has not come back yet.
+      if (!session) return;
+      if (session.isGroup || rosterRef.current.size > 0) {
+        toast(`${data.from.username} joined the call`);
+      }
+      if (session.role !== "caller") return;
       if (session.recordId) {
-        callsApi.answer(session.recordId, "accept").catch(() => {});
+        if (!session.answered) {
+          session.answered = true;
+          callsApi.answer(session.recordId, "accept").catch(() => {});
+        }
       } else {
         session.acceptedBeforeRecord = true;
       }
-      try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit("call:signal", {
-          callId: session.signalId,
-          conversationId: session.conversationId,
-          data: { kind: "offer", sdp: offer },
-        });
-      } catch {
-        endCall();
-      }
     };
 
-    const onSignal = async (data: {
-      from: UserSummary;
-      data: SignalData;
-    }) => {
-      const pc = pcRef.current;
-      if (!pc || !data?.data) return;
+    const onSignal = async (data: { from: UserSummary; data: SignalData }) => {
       const session = sessionRef.current;
+      if (!session) return;
+      const fromId = data.from.id;
+      let pc = pcsRef.current.get(fromId);
       const payload = data.data;
 
       try {
         if (payload.kind === "offer" && payload.sdp) {
+          if (!pc) {
+            pc = createPeerConnectionFor(
+              data.from,
+              session.conversationId,
+              session.signalId,
+            );
+          }
           await pc.setRemoteDescription(payload.sdp);
-          await drainPendingCandidates();
+          await drainPendingCandidates(fromId);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          if (session) {
-            socket.emit("call:signal", {
-              callId: session.signalId,
-              conversationId: session.conversationId,
-              data: { kind: "answer", sdp: answer },
-            });
-          }
-        } else if (payload.kind === "answer" && payload.sdp) {
+          emit("call:signal", {
+            callId: session.signalId,
+            conversationId: session.conversationId,
+            to: fromId,
+            data: { kind: "answer", sdp: answer },
+          });
+        } else if (payload.kind === "answer" && payload.sdp && pc) {
           await pc.setRemoteDescription(payload.sdp);
-          await drainPendingCandidates();
+          await drainPendingCandidates(fromId);
         } else if (payload.kind === "ice" && payload.candidate) {
-          if (pc.remoteDescription) {
+          if (pc?.remoteDescription) {
             await pc.addIceCandidate(payload.candidate);
           } else {
-            pendingCandidatesRef.current.push(payload.candidate);
+            const queue = pendingCandidatesRef.current.get(fromId) ?? [];
+            queue.push(payload.candidate);
+            pendingCandidatesRef.current.set(fromId, queue);
           }
         }
       } catch {
@@ -573,10 +666,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const onRejected = () => {
+    const onRejected = (data: { from: UserSummary }) => {
       const session = sessionRef.current;
       if (!session) return;
-      toast("Call declined.");
+      toast(session.isGroup ? `${data.from.username} declined` : "Call declined.");
+      // A group call carries on for whoever's still ringing or already
+      // connected — only a 1:1 decline actually ends anything.
+      if (session.isGroup) return;
       if (session.recordId) {
         callsApi.answer(session.recordId, "reject").catch(() => {});
       }
@@ -586,13 +682,27 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       cleanup();
     };
 
-    // The peer hung up. Only the caller holds the row, so only it closes one.
+    // One participant left — drop just their connection; the call goes on
+    // for whoever's left. `createPeerConnectionFor`'s own state-change
+    // handler ends it entirely once nobody's left to talk to.
+    const onPeerLeft = (data: { from: UserSummary }) => {
+      if (!pcsRef.current.has(data.from.id)) return;
+      removePeerConnection(data.from.id);
+      toast(`${data.from.username} left the call`);
+      if (
+        pcsRef.current.size === 0 &&
+        statusRef.current !== "calling" &&
+        statusRef.current !== "ringing"
+      ) {
+        endCallRef.current?.();
+      }
+    };
+
+    // The call itself is over — everyone who'd joined has left (or, for a
+    // 1:1, the other side hung up).
     const onEnded = () => {
       const session = sessionRef.current;
       if (session?.recordId) callsApi.end(session.recordId).catch(() => {});
-      // Only the caller logs a call-log message (see `logCallOutcome`) — if
-      // *we're* the caller, the other side (callee) just ended an in-call or
-      // never picked up.
       if (session && session.role === "caller") {
         logCallOutcome(
           session.conversationId,
@@ -607,6 +717,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     socket.on("call:accepted", onAccepted);
     socket.on("call:signal", onSignal);
     socket.on("call:rejected", onRejected);
+    socket.on("call:peer-left", onPeerLeft);
     socket.on("call:ended", onEnded);
 
     return () => {
@@ -614,9 +725,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       socket.off("call:accepted", onAccepted);
       socket.off("call:signal", onSignal);
       socket.off("call:rejected", onRejected);
+      socket.off("call:peer-left", onPeerLeft);
       socket.off("call:ended", onEnded);
     };
-  }, [socket, drainPendingCandidates, cleanup, endCall, logCallOutcome]);
+  }, [
+    socket,
+    emit,
+    createPeerConnectionFor,
+    removePeerConnection,
+    drainPendingCandidates,
+    cleanup,
+    logCallOutcome,
+  ]);
 
   // Tear the call down if the socket drops entirely.
   useEffect(() => {
@@ -641,8 +761,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         status,
         callType,
         peer,
+        isGroup,
         localStream,
-        remoteStream,
+        remoteParticipants,
         isMuted,
         isCameraOff,
         callDuration,
