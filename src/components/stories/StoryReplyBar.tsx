@@ -6,18 +6,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { conversationsApi } from "@/services/api";
-import { conversationsApi, mediaApi, storiesApi } from "@/services/api";
+import { conversationsApi, storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import type { Story } from "@/types";
 
 /**
- * Instagram implements story "likes" and replies the same way under the
- * hood: both just send a direct message to the story's author. There's no
- * dedicated story-like endpoint on this backend, so a heart tap sends a
- * "❤️" DM — same mechanism as a text comment.
- * Instagram implements story replies (text, voice) as a direct message to
- * the story's author, and this backend does the same — so those just send a
+ * Instagram implements story replies as a direct message to the story's
+ * author, and this backend does the same — so a text comment just sends a
  * DM. A "like" (heart tap) is different: it *also* sends the "❤️" DM (same
  * as before, so it still shows up as an activity in the author's inbox), but
  * now additionally calls the real `POST /stories/:id/like` so it's counted
@@ -72,8 +67,6 @@ export function StoryReplyBar({
   const [justLiked, setJustLiked] = useState(false);
   const reply = useStoryReply(story);
   const like = useStoryLike(story);
-  const recorder = useVoiceRecorder();
-  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Pause the story while the viewer is typing a comment.
   useEffect(() => {

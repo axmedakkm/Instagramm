@@ -1,7 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link2, Loader2, Lock, Menu } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, Link2, Loader2, Lock, Menu, MoreHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -11,7 +11,13 @@ import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
 import { NoteBubble } from "@/components/shared/NoteBubble";
 import { Button } from "@/components/ui/button";
-import { conversationsApi, storiesApi } from "@/services/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { conversationsApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
@@ -19,6 +25,7 @@ import type { User } from "@/types";
 
 export function ProfileHeader({ profile }: { profile: User }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const isOwner = currentUser?.id === profile.id;
   const [openList, setOpenList] = useState<"followers" | "following" | null>(
@@ -30,6 +37,34 @@ export function ProfileHeader({ profile }: { profile: User }) {
     mutationFn: () => conversationsApi.getOrCreateWithUser(profile.id),
     onSuccess: (conversation) => router.push(`/messages/${conversation.id}`),
     onError: () => toast.error("Couldn't start that conversation."),
+  });
+
+  // Blocking is one-directional (see usersApi.block) — it hides *you* from
+  // *them*, not the other way around, so this profile keeps loading for the
+  // blocker with `isBlockedByMe` flipped, same page, no navigation away.
+  const toggleBlock = useMutation({
+    mutationFn: () =>
+      profile.isBlockedByMe
+        ? usersApi.unblock(profile.id)
+        : usersApi.block(profile.id),
+    onSuccess: () => {
+      queryClient.setQueryData<User>(
+        queryKeys.users.detail(profile.username),
+        (old) => (old ? { ...old, isBlockedByMe: !old.isBlockedByMe } : old),
+      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.blocked });
+      toast.success(
+        profile.isBlockedByMe
+          ? `Unblocked @${profile.username}.`
+          : `Blocked @${profile.username}.`,
+      );
+    },
+    onError: () =>
+      toast.error(
+        profile.isBlockedByMe
+          ? "Couldn't unblock that account."
+          : "Couldn't block that account.",
+      ),
   });
 
   // Does this person have a live story? Drives the ring around the avatar.
@@ -183,6 +218,29 @@ export function ProfileHeader({ profile }: { profile: User }) {
               )}
               Message
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  aria-label="More options"
+                >
+                  <MoreHorizontal className="size-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={toggleBlock.isPending}
+                  onClick={() => toggleBlock.mutate()}
+                >
+                  <Ban className="size-4" />
+                  {profile.isBlockedByMe ? "Unblock" : "Block"} @
+                  {profile.username}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
       </div>

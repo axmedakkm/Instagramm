@@ -10,12 +10,10 @@ import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
-import { useUIStore } from "@/store/useUIStore";
 
 export function StoriesBar() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const openCreateStory = useUIStore((state) => state.openCreateStory);
   const note = useNotesStore((state) => state.note);
   const activeNote = note && !isNoteExpired(note) ? note : null;
 
@@ -45,7 +43,7 @@ export function StoriesBar() {
           onClick={() =>
             hasMyStories
               ? router.push(`/stories?u=${currentUser.username}`)
-              : openCreateStory()
+              : router.push("/stories/create")
           }
           className="flex w-16 shrink-0 flex-col items-center gap-1"
         >

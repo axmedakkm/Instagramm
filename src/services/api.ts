@@ -125,6 +125,22 @@ export const usersApi = {
         { headers: { "Content-Type": "multipart/form-data" } },
       )
       .then((res) => res.data),
+
+  /**
+   * Blocking is one-directional visibility, not mutual: it hides *you* from
+   * the person you block (their profile/posts/stories/search all 404 or
+   * come back empty for them), but you can still see and unblock them
+   * yourself — same as Instagram. See insta_Back's `isBlockedByTarget`.
+   */
+  block: (userId: string) =>
+    api.post<void>(`/users/${userId}/block`).then((res) => res.data),
+
+  unblock: (userId: string) =>
+    api.delete<void>(`/users/${userId}/block`).then((res) => res.data),
+
+  /** Every account the current user has blocked. */
+  blocked: () =>
+    api.get<UserSummary[]>("/users/me/blocked").then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */
@@ -234,16 +250,17 @@ export const storiesApi = {
     api.get<Story[]>(`/users/${userId}/stories`).then((res) => res.data),
 
   /**
-   * Upload a story, optionally with a music sticker. The backend expects the
-   * track as a JSON *string* field alongside the multipart file — it can't
-   * carry a nested object through form-data.
+   * Upload a story, optionally with a caption and/or a music sticker. The
+   * backend expects the track as a JSON *string* field alongside the
+   * multipart file — it can't carry a nested object through form-data.
    */
-  create: (file: File, music?: MusicTrack | null) =>
+  create: (file: File, music?: MusicTrack | null, caption?: string) =>
     api
       .post<Story>(
         "/stories",
         toFormData({
           media: file,
+          ...(caption ? { caption } : {}),
           ...(music ? { music: JSON.stringify(music) } : {}),
         }),
         { headers: { "Content-Type": "multipart/form-data" } },

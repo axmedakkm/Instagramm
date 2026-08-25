@@ -5,7 +5,6 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { CallOverlay } from "@/components/messages/CallOverlay";
 import { CallProvider } from "@/components/providers/CallProvider";
 import { SocketProvider } from "@/components/providers/SocketProvider";
-import { CreateStoryModal } from "@/components/stories/CreateStoryModal";
 
 export default function MainLayout({
   children,
@@ -27,7 +26,6 @@ export default function MainLayout({
             <MobileNav />
           </div>
           <CreatePostModal />
-          <CreateStoryModal />
           <CallOverlay />
         </CallProvider>
       </SocketProvider>

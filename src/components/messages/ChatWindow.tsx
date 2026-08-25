@@ -131,13 +131,20 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
         </Link>
         {other && (
           <>
-            <UserAvatar user={other} size="sm" />
-            <div>
-              <p className="text-sm font-semibold">{other.username}</p>
-              <p className="text-xs text-muted-foreground">
-                {isConnected ? "Active now" : "Connecting..."}
-              </p>
-            </div>
+            <Link
+              href={`/${other.username}`}
+              className="flex min-w-0 items-center gap-3"
+            >
+              <UserAvatar user={other} size="sm" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {other.username}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {isConnected ? "Active now" : "Connecting..."}
+                </p>
+              </div>
+            </Link>
 
             <div className="ml-auto flex items-center gap-1">
               <button

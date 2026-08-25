@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, Music, X } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StoryReplyBar } from "@/components/stories/StoryReplyBar";
@@ -188,10 +189,15 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
         </div>
 
         <div className="absolute inset-x-3 top-6 z-20 flex items-center gap-2">
-          <UserAvatar user={currentGroup.user} size="sm" />
-          <span className="text-sm font-semibold text-white">
-            {currentGroup.user.username}
-          </span>
+          <Link
+            href={`/${currentGroup.user.username}`}
+            className="flex min-w-0 items-center gap-2"
+          >
+            <UserAvatar user={currentGroup.user} size="sm" />
+            <span className="truncate text-sm font-semibold text-white">
+              {currentGroup.user.username}
+            </span>
+          </Link>
           <TimeAgo
             date={currentStory.createdAt}
             className="text-xs text-white/70"
@@ -229,6 +235,12 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             className="object-contain"
             preload
           />
+        )}
+
+        {currentStory.caption && (
+          <p className="pointer-events-none absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 text-center text-xl font-semibold text-white drop-shadow-lg">
+            {currentStory.caption}
+          </p>
         )}
 
         {music && (
