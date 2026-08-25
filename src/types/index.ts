@@ -144,12 +144,33 @@ export interface ArchivedStory {
   expiresAt: string;
 }
 
+export interface ConversationParticipant extends UserSummary {
+  /** Only meaningful for a group (>2 participants) — see `isGroupConversation`. */
+  isAdmin: boolean;
+}
+
 export interface Conversation {
   id: string;
-  participants: UserSummary[];
+  /** Custom group name. Null for a 1:1, or a group that never set one —
+   * fall back to `conversationTitle()`. */
+  name: string | null;
+  participants: ConversationParticipant[];
+  /** My own private nicknames for other participants, forUserId -> label.
+   * Never broadcast — only I see mine, same idea per other participant. */
+  nicknames: Record<string, string>;
   lastMessage: Message | null;
   unreadCount: number;
   updatedAt: string;
+}
+
+/** A non-admin member's pending proposal to add someone to a group — see
+ * `conversationsApi.addMember` / `.joinRequests`. */
+export interface ConversationJoinRequest {
+  id: string;
+  conversationId: string;
+  requestedBy: UserSummary;
+  targetUser: UserSummary;
+  createdAt: string;
 }
 
 export interface Message {

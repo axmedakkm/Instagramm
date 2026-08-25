@@ -8,6 +8,7 @@ import type {
   CallType,
   Comment,
   Conversation,
+  ConversationJoinRequest,
   LoginPayload,
   Message,
   MusicTrack,
@@ -311,6 +312,69 @@ export const conversationsApi = {
   createGroup: (participantIds: string[]) =>
     api
       .post<Conversation>("/conversations", { participantIds })
+      .then((res) => res.data),
+
+  rename: (conversationId: string, name: string) =>
+    api
+      .patch<Conversation>(`/conversations/${conversationId}`, { name })
+      .then((res) => res.data),
+
+  /** Leaving a 1:1 is rejected server-side — "delete" (client-side hide,
+   * see `useConversationPrefsStore`) is what that's for. */
+  leave: (conversationId: string) =>
+    api.delete<void>(`/conversations/${conversationId}/leave`).then((res) => res.data),
+
+  promoteAdmin: (conversationId: string, userId: string) =>
+    api
+      .post<void>(`/conversations/${conversationId}/admins/${userId}`)
+      .then((res) => res.data),
+
+  demoteAdmin: (conversationId: string, userId: string) =>
+    api
+      .delete<void>(`/conversations/${conversationId}/admins/${userId}`)
+      .then((res) => res.data),
+
+  /** Sets *my own* private label for that participant — see `Conversation.nicknames`. */
+  setNickname: (conversationId: string, userId: string, nickname: string) =>
+    api
+      .put<void>(`/conversations/${conversationId}/nicknames/${userId}`, { nickname })
+      .then((res) => res.data),
+
+  clearNickname: (conversationId: string, userId: string) =>
+    api
+      .delete<void>(`/conversations/${conversationId}/nicknames/${userId}`)
+      .then((res) => res.data),
+
+  /**
+   * An admin (or anyone, while it's still just a 1:1) adds directly and
+   * resolves with `{ pending: false, conversation }`; a non-admin member of
+   * an established group instead files a join request and resolves with
+   * `{ pending: true, request }` for the admin(s) to act on.
+   */
+  addMember: (conversationId: string, userId: string) =>
+    api
+      .post<
+        | { pending: false; conversation: Conversation }
+        | { pending: true; request: ConversationJoinRequest }
+      >(`/conversations/${conversationId}/members`, { userId })
+      .then((res) => res.data),
+
+  joinRequests: (conversationId: string) =>
+    api
+      .get<ConversationJoinRequest[]>(`/conversations/${conversationId}/join-requests`)
+      .then((res) => res.data),
+
+  /** Admin-only server-side. */
+  acceptJoinRequest: (conversationId: string, requestId: string) =>
+    api
+      .post<void>(`/conversations/${conversationId}/join-requests/${requestId}/accept`)
+      .then((res) => res.data),
+
+  /** Admin rejects, or the requester cancels their own — same endpoint,
+   * enforced server-side. */
+  rejectJoinRequest: (conversationId: string, requestId: string) =>
+    api
+      .delete<void>(`/conversations/${conversationId}/join-requests/${requestId}`)
       .then((res) => res.data),
 
   messages: (conversationId: string, page?: number) =>

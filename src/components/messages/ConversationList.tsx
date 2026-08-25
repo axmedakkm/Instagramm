@@ -300,7 +300,9 @@ function ConversationRow({
           {isPinned && (
             <Pin className="size-3 shrink-0 fill-muted-foreground text-muted-foreground" />
           )}
-          <span className="truncate">{conversationTitle(others)}</span>
+          <span className="truncate">
+            {conversationTitle(conversation, others)}
+          </span>
         </p>
         <p
           className={cn(

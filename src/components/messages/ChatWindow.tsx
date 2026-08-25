@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCall } from "@/components/providers/CallProvider";
+import { GroupInfoModal } from "@/components/messages/GroupInfoModal";
 import { MessageInput } from "@/components/messages/MessageInput";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -17,6 +18,7 @@ import { useSendMessage } from "@/hooks/useSendMessage";
 import { useSocket } from "@/hooks/useSocket";
 import {
   conversationTitle,
+  displayName,
   isGroupConversation,
   otherParticipants,
 } from "@/lib/conversation";
@@ -38,6 +40,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
   const markedReadRef = useRef<Set<string>>(new Set());
   const { socket, isConnected } = useSocket();
   const { startCall } = useCall();
+  const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   /** Full-size view for a tapped chat photo — a modal instead of navigating
    * away, so the conversation stays put behind it. */
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -189,14 +192,20 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                   />
                 ))}
               </div>
-              <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => setGroupInfoOpen(true)}
+                className="min-w-0 text-left"
+              >
                 <p className="truncate text-sm font-semibold">
-                  {conversationTitle(others)}
+                  {conversation
+                    ? conversationTitle(conversation, others)
+                    : ""}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {conversation?.participants.length} people
                 </p>
-              </div>
+              </button>
             </div>
           ) : (
             <Link
@@ -264,7 +273,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                  * per-message avatar to tell people apart by otherwise. */}
                 {isGroup && !isMine && (
                   <p className="mb-0.5 text-xs font-semibold text-primary">
-                    {message.sender.username}
+                    {displayName(message.sender, conversation?.nicknames)}
                   </p>
                 )}
                 {message.sharedPostId && (
@@ -388,6 +397,14 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
           )}
         </DialogContent>
       </Dialog>
+
+      {isGroup && conversation && (
+        <GroupInfoModal
+          conversation={conversation}
+          open={groupInfoOpen}
+          onOpenChange={setGroupInfoOpen}
+        />
+      )}
     </div>
   );
 }
