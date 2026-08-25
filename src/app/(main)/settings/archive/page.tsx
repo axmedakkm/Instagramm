@@ -59,7 +59,7 @@ export default function StoryArchivePage() {
           <ChevronLeft className="size-5" />
         </Button>
         <div>
-          <h1 className="text-xl font-semibold">Archive</h1>
+          <h1 className="text-xl font-semibold">Story archive</h1>
           <p className="text-xs text-muted-foreground">
             Your stories are saved here after 24 hours. Only you can see them.
           </p>
