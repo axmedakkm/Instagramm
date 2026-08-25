@@ -1,16 +1,17 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link2, Loader2, Lock, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { StoryRing } from "@/components/feed/StoryRing";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { FollowListModal } from "@/components/profile/FollowListModal";
 import { FollowButton } from "@/components/shared/FollowButton";
-import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
-import { conversationsApi } from "@/services/api";
+import { conversationsApi, storiesApi } from "@/services/api";
+import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { User } from "@/types";
 
@@ -29,15 +30,45 @@ export function ProfileHeader({ profile }: { profile: User }) {
     onError: () => toast.error("Couldn't start that conversation."),
   });
 
+  // Does this person have a live story? Drives the ring around the avatar.
+  // Same query key the stories bar uses, so it's served from cache.
+  const { data: stories } = useQuery({
+    queryKey: queryKeys.stories.byUser(profile.id),
+    queryFn: () => storiesApi.byUser(profile.id),
+    staleTime: 60 * 1000,
+  });
+
+  const hasStory = !!stories && stories.length > 0;
+  const hasUnviewed = !!stories?.some((story) => !story.isViewedByMe);
+
   return (
     <header className="px-4 pb-6 pt-6 sm:pt-8">
       {/* Top row: avatar on the left, everything else in a column beside it. */}
       <div className="flex gap-4 sm:gap-6">
-        <UserAvatar
-          user={profile}
-          size="xl"
-          className="size-20 shrink-0 sm:size-28"
-        />
+        {/* With a story, the avatar becomes a button that opens it. Without
+            one there's nothing to open, so it stays a plain image. */}
+        {hasStory ? (
+          <button
+            type="button"
+            onClick={() => router.push(`/stories?u=${profile.username}`)}
+            aria-label={`View ${profile.username}'s story`}
+            className="shrink-0 rounded-full"
+          >
+            <StoryRing
+              user={profile}
+              hasStory
+              hasUnviewed={hasUnviewed}
+              size="xl"
+              avatarClassName="size-20 sm:size-28"
+            />
+          </button>
+        ) : (
+          <StoryRing
+            user={profile}
+            size="xl"
+            avatarClassName="size-20 sm:size-28"
+          />
+        )}
 
         <div className="min-w-0 flex-1">
           {/* Username + burger. The burger is pushed to the far right of the

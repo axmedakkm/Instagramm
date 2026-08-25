@@ -12,7 +12,11 @@ export function ProfileSkeleton() {
       <div className="px-4 pb-6 pt-6 sm:pt-8">
         {/* Avatar + info column */}
         <div className="flex gap-4 sm:gap-6">
-          <Skeleton className="size-20 shrink-0 rounded-full sm:size-28" />
+          {/* `p-1` stands in for the story ring's two 2px bands, so the real
+              avatar lands at exactly this size. */}
+          <div className="shrink-0 p-1">
+            <Skeleton className="size-20 rounded-full sm:size-28" />
+          </div>
 
           <div className="min-w-0 flex-1">
             {/* Username + burger */}
