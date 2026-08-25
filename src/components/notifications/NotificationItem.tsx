@@ -33,6 +33,17 @@ const NOTIFICATION_ICON: Record<Notification["type"], typeof Heart> = {
   mention: MessageCircle,
 };
 
+/** Each notification type gets its own coloured badge so the feed reads at a
+ * glance — hearts pink, comments blue, follows brand-purple. */
+const NOTIFICATION_BADGE: Record<Notification["type"], string> = {
+  like_post: "bg-[linear-gradient(135deg,#ee2a7b,#f43f5e)] text-white",
+  like_comment: "bg-[linear-gradient(135deg,#ee2a7b,#f43f5e)] text-white",
+  comment: "bg-[linear-gradient(135deg,#0095f6,#3b82f6)] text-white",
+  mention: "bg-[linear-gradient(135deg,#0095f6,#3b82f6)] text-white",
+  follow: "bg-[linear-gradient(135deg,#6228d7,#ee2a7b)] text-white",
+  follow_request: "bg-[linear-gradient(135deg,#6228d7,#ee2a7b)] text-white",
+};
+
 /**
  * Accept/decline actions for a "follow_request" notification — the
  * *recipient* is being asked to let `notification.actor` follow them, so a
@@ -130,14 +141,22 @@ export function NotificationItem({
   const content = (
     <div
       className={cn(
-        "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent",
+        "relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent",
         !notification.isRead && "bg-primary/5",
       )}
     >
+      {!notification.isRead && (
+        <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-[linear-gradient(180deg,#f9ce34,#ee2a7b,#6228d7)]" />
+      )}
       <div className="relative shrink-0">
         <UserAvatar user={notification.actor} size="md" />
-        <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-background text-destructive">
-          <Icon className="size-3.5 fill-current" />
+        <span
+          className={cn(
+            "absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-background shadow-soft",
+            NOTIFICATION_BADGE[notification.type],
+          )}
+        >
+          <Icon className="size-3 fill-current" />
         </span>
       </div>
 

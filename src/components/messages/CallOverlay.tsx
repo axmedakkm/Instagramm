@@ -71,7 +71,7 @@ export function CallOverlay() {
       {/* Duration badge — pinned to the top so it stays visible even once
        * the peer identity block fades out behind a connected video call. */}
       {isConnected && (
-        <p className="z-10 mt-4 rounded-full bg-black/40 px-3 py-1 text-sm tabular-nums text-white/90">
+        <p className="glass-media z-10 mt-4 rounded-full px-3.5 py-1 text-sm tabular-nums text-white/90 ring-1 ring-white/15">
           {durationLabel}
         </p>
       )}
@@ -84,7 +84,7 @@ export function CallOverlay() {
           playsInline
           muted
           className={cn(
-            "absolute right-4 top-4 z-10 w-28 rounded-xl border border-white/20 object-cover shadow-lg sm:w-40",
+            "absolute right-4 top-4 z-10 w-28 rounded-2xl border border-white/20 object-cover shadow-float transition-all duration-300 ease-smooth sm:w-40",
             isCameraOff && "hidden",
           )}
         />
@@ -93,11 +93,18 @@ export function CallOverlay() {
       {/* Caller/peer identity — shown until a video stream covers it. */}
       <div
         className={cn(
-          "z-10 flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center",
-          isVideo && isConnected && "opacity-0",
+          "z-10 flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center transition-opacity duration-500 ease-smooth",
+          isVideo && isConnected && "pointer-events-none opacity-0",
         )}
       >
-        <UserAvatar user={peer} size="xl" className="size-28 ring-2 ring-white/30" />
+        <UserAvatar
+          user={peer}
+          size="xl"
+          className={cn(
+            "size-28 shadow-float ring-2 ring-white/30",
+            !isConnected && "animate-pulse",
+          )}
+        />
         <div>
           <p className="text-2xl font-semibold">{peer.username}</p>
           {statusLabel && (
@@ -107,7 +114,7 @@ export function CallOverlay() {
       </div>
 
       {/* Controls */}
-      <div className="z-10 flex items-center gap-4 pb-12">
+      <div className="glass-media z-10 mb-12 flex items-center gap-4 rounded-full px-5 py-3 ring-1 ring-white/15">
         {status === "ringing" ? (
           <>
             <button

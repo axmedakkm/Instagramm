@@ -52,8 +52,8 @@ export function StoriesBar() {
               hasUnviewed={myStoriesHaveUnviewed}
             />
             {!hasMyStories && (
-              <span className="absolute bottom-0 right-0 flex size-4 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground">
-                <Plus className="size-2.5" />
+              <span className="absolute bottom-0 right-0 flex size-5 items-center justify-center rounded-full border-2 border-background bg-[linear-gradient(135deg,#f9ce34,#ee2a7b_55%,#6228d7)] text-white shadow-soft">
+                <Plus className="size-3" strokeWidth={2.5} />
               </span>
             )}
           </div>

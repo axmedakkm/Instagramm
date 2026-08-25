@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import {
-  Compass,
   Film,
   Heart,
   Home,
@@ -42,7 +41,6 @@ export function Sidebar() {
   const navItems = [
     { href: "/feed", label: "Home", icon: Home },
     { href: "/explore", label: "Search", icon: Search },
-    { href: "/explore", label: "Explore", icon: Compass },
     { href: "/reels", label: "Reels", icon: Film },
     { href: "/messages", label: "Messages", icon: MessageCircle },
     {
@@ -54,13 +52,13 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-border bg-background px-3 py-6 xl:w-64 lg:flex">
+    <aside className="glass fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col border-r border-border/60 px-3 py-6 xl:w-64 lg:flex">
       <Link
         href="/feed"
-        className="mb-8 flex items-center gap-2 px-2 text-xl font-bold"
+        className="mb-8 flex items-center gap-2 px-2 text-xl font-bold transition-opacity duration-200 ease-smooth hover:opacity-70"
       >
         <Camera className="size-7 shrink-0" />
-        <span className="hidden xl:inline">Instagramm</span>
+        <span className="brand-gradient hidden xl:inline">Instagramm</span>
       </Link>
 
       <nav className="flex flex-1 flex-col gap-1">
@@ -71,12 +69,18 @@ export function Sidebar() {
               key={item.label}
               href={item.href}
               className={cn(
-                "relative flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-colors hover:bg-accent",
-                isActive && "font-bold",
+                "group relative flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-all duration-200 ease-smooth hover:bg-accent active:scale-[0.98]",
+                isActive && "bg-accent font-bold",
               )}
             >
+              {isActive && (
+                <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full bg-[linear-gradient(180deg,#f9ce34,#ee2a7b,#6228d7)]" />
+              )}
               <item.icon
-                className="size-6 shrink-0"
+                className={cn(
+                  "size-6 shrink-0 transition-transform duration-200 ease-spring group-hover:scale-110",
+                  isActive && "scale-110",
+                )}
                 fill={isActive ? "currentColor" : "none"}
               />
               <span className="hidden xl:inline">{item.label}</span>
@@ -92,7 +96,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={openCreatePost}
-          className="flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-colors hover:bg-accent"
+          className="flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-all duration-200 ease-smooth hover:bg-accent active:scale-[0.98]"
         >
           <PlusSquare className="size-6 shrink-0" />
           <span className="hidden xl:inline">Create</span>
@@ -116,7 +120,7 @@ export function Sidebar() {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="mt-auto flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-colors hover:bg-accent"
+                className="mt-auto flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-all duration-200 ease-smooth hover:bg-accent active:scale-[0.98]"
               >
                 <Menu className="size-6 shrink-0" />
                 <span className="hidden xl:inline">More</span>

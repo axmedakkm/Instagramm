@@ -158,7 +158,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 
   if (isRecording) {
     return (
-      <div className="flex items-center gap-2 border-t border-border p-3">
+      <div className="glass sticky bottom-0 flex items-center gap-2 border-t border-border/60 p-3">
         <button
           type="button"
           onClick={cancel}
@@ -192,7 +192,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   // back sent voice messages in `ChatWindow`).
   if (previewFile && previewUrl) {
     return (
-      <div className="flex items-center gap-2 border-t border-border p-3">
+      <div className="glass sticky bottom-0 flex items-center gap-2 border-t border-border/60 p-3">
         <button
           type="button"
           onClick={discardPreview}
@@ -261,7 +261,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex items-center gap-2 border-t border-border p-3"
+      className="glass sticky bottom-0 flex items-center gap-2 border-t border-border/60 p-3"
     >
       <input
         ref={fileInputRef}
@@ -290,7 +290,8 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         <Button
           type="submit"
           size="icon"
-          variant="ghost"
+          variant="gradient"
+          className="rounded-full"
           disabled={isSending}
           aria-label="Send message"
         >

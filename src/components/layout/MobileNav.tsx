@@ -21,17 +21,20 @@ export function MobileNav() {
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex h-14 items-center justify-around border-t border-border bg-background lg:hidden">
+    <nav className="glass fixed inset-x-0 bottom-0 z-40 flex h-14 items-center justify-around border-t border-border/60 pb-[env(safe-area-inset-bottom)] lg:hidden">
       {navItems.slice(0, 2).map((item) => {
         const isActive = pathname === item.href;
         return (
           <Link
             key={item.href}
             href={item.href}
-            className="flex h-full flex-1 items-center justify-center"
+            className="relative flex h-full flex-1 items-center justify-center transition-transform duration-150 ease-smooth active:scale-90"
           >
+            {isActive && (
+              <span className="absolute top-1 size-1 rounded-full bg-[linear-gradient(90deg,#f9ce34,#ee2a7b,#6228d7)]" />
+            )}
             <item.icon
-              className="size-6"
+              className={cn("size-6 transition-transform duration-200 ease-spring", isActive && "scale-110")}
               fill={isActive ? "currentColor" : "none"}
             />
           </Link>
@@ -41,7 +44,7 @@ export function MobileNav() {
       <button
         type="button"
         onClick={openCreatePost}
-        className="flex h-full flex-1 items-center justify-center"
+        className="flex h-full flex-1 items-center justify-center transition-transform duration-150 ease-smooth active:scale-90"
       >
         <PlusSquare className="size-6" />
       </button>
@@ -52,10 +55,13 @@ export function MobileNav() {
           <Link
             key={item.href}
             href={item.href}
-            className="flex h-full flex-1 items-center justify-center"
+            className="relative flex h-full flex-1 items-center justify-center transition-transform duration-150 ease-smooth active:scale-90"
           >
+            {isActive && (
+              <span className="absolute top-1 size-1 rounded-full bg-[linear-gradient(90deg,#f9ce34,#ee2a7b,#6228d7)]" />
+            )}
             <item.icon
-              className="size-6"
+              className={cn("size-6 transition-transform duration-200 ease-spring", isActive && "scale-110")}
               fill={isActive ? "currentColor" : "none"}
             />
           </Link>
@@ -65,7 +71,7 @@ export function MobileNav() {
       {user && (
         <Link
           href={`/${user.username}`}
-          className="flex h-full flex-1 items-center justify-center"
+          className="flex h-full flex-1 items-center justify-center transition-transform duration-150 ease-smooth active:scale-90"
         >
           <UserAvatar
             user={user}

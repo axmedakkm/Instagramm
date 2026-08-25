@@ -5,10 +5,12 @@ import { Heart, MessageCircle, Volume2, VolumeX } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { CommentSheet } from "@/components/feed/CommentSheet";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { postsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
+import type { Post } from "@/types";
 
 /**
  * A vertical, snap-scrolling feed built on top of `/posts/explore`. Video
@@ -18,6 +20,15 @@ import { queryKeys } from "@/services/queryKeys";
  */
 export default function ReelsPage() {
   const [isMuted, setIsMuted] = useState(true);
+  // The reel whose comment sheet is open. Kept as the post itself so the sheet
+  // still has a count to show while it slides back down on close.
+  const [commentsFor, setCommentsFor] = useState<Post | null>(null);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+
+  const openComments = (post: Post) => {
+    setCommentsFor(post);
+    setCommentsOpen(true);
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.posts.explore,
@@ -100,13 +111,15 @@ export default function ReelsPage() {
                     />
                     <span className="text-xs">{post.likesCount}</span>
                   </Link>
-                  <Link
-                    href={`/p/${post.id}`}
-                    className="flex flex-col items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => openComments(post)}
+                    className="flex flex-col items-center gap-1 transition-transform duration-200 ease-spring hover:scale-110 active:scale-90"
+                    aria-label="Comments"
                   >
-                    <MessageCircle className="size-7" />
+                    <MessageCircle className="size-7 -scale-x-100" />
                     <span className="text-xs">{post.commentsCount}</span>
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -118,6 +131,15 @@ export default function ReelsPage() {
         <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
           No reels to show right now.
         </div>
+      )}
+
+      {commentsFor && (
+        <CommentSheet
+          postId={commentsFor.id}
+          commentsCount={commentsFor.commentsCount}
+          open={commentsOpen}
+          onOpenChange={setCommentsOpen}
+        />
       )}
     </div>
   );

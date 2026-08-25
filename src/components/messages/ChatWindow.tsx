@@ -125,7 +125,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
+      <header className="glass sticky top-0 z-10 flex items-center gap-3 border-b border-border/60 px-4 py-3">
         <Link href="/messages" className="lg:hidden">
           <ArrowLeft className="size-5" />
         </Link>
@@ -169,14 +169,17 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
           return (
             <div
               key={message.id}
-              className={cn("flex", isMine ? "justify-end" : "justify-start")}
+              className={cn(
+                "enter-up flex",
+                isMine ? "justify-end" : "justify-start",
+              )}
             >
               <div
                 className={cn(
-                  "max-w-[70%] rounded-2xl px-3.5 py-2 text-sm",
+                  "max-w-[70%] rounded-2xl px-3.5 py-2 text-sm shadow-soft",
                   isMine
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground",
+                    ? "rounded-br-md bg-[linear-gradient(135deg,#0095f6,#6228d7)] text-white"
+                    : "rounded-bl-md bg-muted text-foreground",
                 )}
               >
                 {message.sharedPostId && (
