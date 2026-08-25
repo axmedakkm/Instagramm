@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  Ban,
   Bookmark,
   ChevronLeft,
   ChevronRight,
@@ -102,6 +103,16 @@ export default function SettingsPage() {
         >
           <Lock className="size-5" />
           Account privacy
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/settings/blocked")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Ban className="size-5" />
+          Blocked accounts
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 

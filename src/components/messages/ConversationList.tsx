@@ -1,7 +1,16 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { MoreHorizontal, Pin, PinOff, Search, SquarePen, Trash2, X } from "lucide-react";
+import {
+  Ban,
+  MoreHorizontal,
+  Pin,
+  PinOff,
+  Search,
+  SquarePen,
+  Trash2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -15,6 +24,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -23,11 +33,12 @@ import { cn } from "@/lib/utils";
 import { conversationsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useBlockedUsersStore } from "@/store/useBlockedUsersStore";
 import {
   isConversationHidden,
   useConversationPrefsStore,
 } from "@/store/useConversationPrefsStore";
-import type { Conversation } from "@/types";
+import type { Conversation, UserSummary } from "@/types";
 
 function otherParticipant(conversation: Conversation, currentUserId?: string) {
   return (
@@ -47,6 +58,9 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const hiddenAt = useConversationPrefsStore((state) => state.hiddenAt);
   const togglePin = useConversationPrefsStore((state) => state.togglePin);
   const hideConversation = useConversationPrefsStore((state) => state.hide);
+  const blockedUsers = useBlockedUsersStore((state) => state.users);
+  const blockUser = useBlockedUsersStore((state) => state.block);
+  const blockedIds = new Set(blockedUsers.map((u) => u.id));
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.conversations.list,
@@ -55,14 +69,20 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   });
 
   // Chats you've "deleted" drop out of your own list — until a new message
-  // arrives, same as Instagram.
-  const allConversations = (data?.items ?? []).filter(
-    (conversation) =>
-      !isConversationHidden(
+  // arrives, same as Instagram. Chats with someone you've blocked drop out
+  // too, but stay out (no unblock-from-the-inbox way back).
+  const allConversations = (data?.items ?? []).filter((conversation) => {
+    if (
+      isConversationHidden(
         hiddenAt[conversation.id],
         conversation.lastMessage?.createdAt,
-      ),
-  );
+      )
+    ) {
+      return false;
+    }
+    const other = otherParticipant(conversation, currentUser?.id);
+    return !blockedIds.has(other.id);
+  });
 
   // Filter locally on username / full name. The whole list is already in
   // memory, so there's no request to debounce here — unlike the Explore
@@ -88,6 +108,14 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const handleDelete = (conversationId: string) => {
     hideConversation(conversationId);
     toast.success("Chat deleted");
+    if (activeId === conversationId || pathname === `/messages/${conversationId}`) {
+      router.push("/messages");
+    }
+  };
+
+  const handleBlock = (conversationId: string, user: UserSummary) => {
+    blockUser(user);
+    toast.success(`@${user.username} blocked`);
     if (activeId === conversationId || pathname === `/messages/${conversationId}`) {
       router.push("/messages");
     }
@@ -186,6 +214,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
                 isPinned
                 onTogglePin={() => togglePin(conversation.id)}
                 onDelete={() => handleDelete(conversation.id)}
+                onBlock={(user) => handleBlock(conversation.id, user)}
               />
             ))}
           </>
@@ -205,6 +234,7 @@ export function ConversationList({ activeId }: { activeId?: string }) {
             isPinned={false}
             onTogglePin={() => togglePin(conversation.id)}
             onDelete={() => handleDelete(conversation.id)}
+            onBlock={(user) => handleBlock(conversation.id, user)}
           />
         ))}
       </div>
@@ -226,6 +256,7 @@ function ConversationRow({
   isPinned,
   onTogglePin,
   onDelete,
+  onBlock,
 }: {
   conversation: Conversation;
   currentUserId?: string;
@@ -233,6 +264,7 @@ function ConversationRow({
   isPinned: boolean;
   onTogglePin: () => void;
   onDelete: () => void;
+  onBlock: (user: UserSummary) => void;
 }) {
   const other = otherParticipant(conversation, currentUserId);
 
@@ -310,6 +342,17 @@ function ConversationRow({
                 Pin chat
               </>
             )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={(event) => {
+              event.preventDefault();
+              onBlock(other);
+            }}
+          >
+            <Ban className="size-4" />
+            Block user
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
