@@ -12,6 +12,7 @@ import type {
   LoginPayload,
   Message,
   MusicTrack,
+  Note,
   Notification,
   PaginatedResponse,
   Post,
@@ -489,6 +490,22 @@ export const notificationsApi = {
 
   markAllRead: () =>
     api.post<void>("/notifications/read-all").then((res) => res.data),
+};
+
+/** ------------------------------------------------------------------ */
+/** Notes                                                               */
+/** ------------------------------------------------------------------ */
+
+export const notesApi = {
+  /** My note plus one from each person I follow (mine first). */
+  list: () => api.get<Note[]>("/notes").then((res) => res.data),
+
+  /** Create or replace my note (one per user). */
+  create: (payload: { text: string; music?: MusicTrack | null }) =>
+    api.post<Note>("/notes", payload).then((res) => res.data),
+
+  /** Remove my note. */
+  remove: () => api.delete<void>("/notes").then((res) => res.data),
 };
 
 /** ------------------------------------------------------------------ */

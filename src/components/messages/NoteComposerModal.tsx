@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { MusicPicker } from "@/components/shared/MusicPicker";
@@ -12,22 +13,29 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { NOTE_MAX_LENGTH, useNotesStore, type Note } from "@/store/useNotesStore";
-import type { MusicTrack } from "@/types";
+import { notesApi } from "@/services/api";
+import { queryKeys } from "@/services/queryKeys";
+import { useAuthStore } from "@/store/useAuthStore";
+import type { MusicTrack, Note } from "@/types";
+
+/** Instagram caps notes at 60 characters; so do we. */
+const NOTE_MAX_LENGTH = 60;
 
 /**
  * Write (or edit) the note that sits above your inbox. A note is a line of
- * text under 60 characters, optionally with a song attached.
+ * text under 60 characters, optionally with a song. It's saved on the backend
+ * so your followers can see it.
  */
 export function NoteComposerModal({
   open,
   onOpenChange,
+  note,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Your current note, so the form opens pre-filled. */
+  note: Note | null;
 }) {
-  const note = useNotesStore((state) => state.note);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
@@ -45,26 +53,46 @@ export function NoteComposerModal({
 }
 
 function NoteForm({ note, onClose }: { note: Note | null; onClose: () => void }) {
-  const setNote = useNotesStore((state) => state.setNote);
-  const clearNote = useNotesStore((state) => state.clearNote);
+  const queryClient = useQueryClient();
+  const currentUsername = useAuthStore((state) => state.user?.username);
 
   const [text, setText] = useState(note?.text ?? "");
   const [music, setMusic] = useState<MusicTrack | null>(note?.music ?? null);
 
   const trimmed = text.trim();
 
-  const handleShare = () => {
-    if (!trimmed) return;
-    setNote(trimmed, music ?? undefined);
-    toast.success("Note shared");
-    onClose();
+  // Both actions refresh the messages rail and (so the profile bubble updates)
+  // your own profile.
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.notes.list });
+    if (currentUsername) {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.users.detail(currentUsername),
+      });
+    }
   };
 
-  const handleDelete = () => {
-    clearNote();
-    toast.success("Note deleted");
-    onClose();
-  };
+  const shareMutation = useMutation({
+    mutationFn: () => notesApi.create({ text: trimmed, music }),
+    onSuccess: () => {
+      toast.success("Note shared");
+      refresh();
+      onClose();
+    },
+    onError: () => toast.error("Couldn't share your note. Please try again."),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => notesApi.remove(),
+    onSuccess: () => {
+      toast.success("Note deleted");
+      refresh();
+      onClose();
+    },
+    onError: () => toast.error("Couldn't delete your note."),
+  });
+
+  const isBusy = shareMutation.isPending || deleteMutation.isPending;
 
   return (
     <>
@@ -96,17 +124,25 @@ function NoteForm({ note, onClose }: { note: Note | null; onClose: () => void })
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Notes disappear after 24 hours.
+          Notes disappear after 24 hours and are visible to people who follow
+          you.
         </p>
       </div>
 
       <DialogFooter>
         {note && (
-          <Button variant="ghost" onClick={handleDelete}>
+          <Button
+            variant="ghost"
+            disabled={isBusy}
+            onClick={() => deleteMutation.mutate()}
+          >
             Delete note
           </Button>
         )}
-        <Button disabled={!trimmed} onClick={handleShare}>
+        <Button
+          disabled={!trimmed || isBusy}
+          onClick={() => shareMutation.mutate()}
+        >
           Share
         </Button>
       </DialogFooter>

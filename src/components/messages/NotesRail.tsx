@@ -1,27 +1,34 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Music, Pause, Play, Plus } from "lucide-react";
+import { Pause, Play, Plus } from "lucide-react";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { StoryRing } from "@/components/feed/StoryRing";
 import { NoteComposerModal } from "@/components/messages/NoteComposerModal";
-import { storiesApi } from "@/services/api";
+import { NoteBubble } from "@/components/shared/NoteBubble";
+import { UserAvatar } from "@/components/shared/UserAvatar";
+import { notesApi, storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
-import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
 import { useAuthStore } from "@/store/useAuthStore";
 
 /**
- * The rail of notes above the inbox. Right now it holds exactly one entry —
- * yours — because notes live in localStorage and there's no backend endpoint
- * that could hand us anybody else's. It's laid out as a scrolling rail so
- * other people's notes drop straight in once that endpoint exists.
+ * The rail of notes above the inbox. Now backed by the real `/notes` endpoint,
+ * so it shows your own note (first, as a composer button) followed by a note
+ * from each person you follow. Your note reaches your followers the same way.
  */
 export function NotesRail() {
   const currentUser = useAuthStore((state) => state.user);
-  const note = useNotesStore((state) => state.note);
   const [composerOpen, setComposerOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  const { data: notes } = useQuery({
+    queryKey: queryKeys.notes.list,
+    queryFn: notesApi.list,
+    enabled: !!currentUser,
+    staleTime: 30 * 1000,
+  });
 
   // Your own live stories — drives the ring around your avatar here, and
   // shares its cache with the stories bar on the feed.
@@ -34,10 +41,13 @@ export function NotesRail() {
 
   if (!currentUser) return null;
 
-  // A note past its 24h life is treated as if it were never there.
-  const activeNote = note && !isNoteExpired(note) ? note : null;
-  const track = activeNote?.music;
-  const canPlay = !!track?.previewUrl;
+  const myNote = notes?.find((n) => n.author.id === currentUser.id) ?? null;
+  const otherNotes = (notes ?? []).filter(
+    (n) => n.author.id !== currentUser.id,
+  );
+
+  const myTrack = myNote?.music;
+  const canPlay = !!myTrack?.previewUrl;
 
   const hasStory = !!myStories && myStories.length > 0;
   const hasUnviewed = !!myStories?.some((story) => !story.isViewedByMe);
@@ -51,43 +61,25 @@ export function NotesRail() {
 
   return (
     <div className="no-scrollbar flex gap-4 overflow-x-auto px-4 pb-3 pt-1">
-      {/* The play control has to be a sibling of the composer button, not a
-          child: a button inside a button is invalid HTML and the inner one
-          stops being reachable. */}
+      {/* Your note — a button that opens the composer. The play control is a
+          sibling of that button, not a child: a button inside a button is
+          invalid HTML and the inner one stops being reachable. */}
       <div className="relative flex w-[72px] shrink-0 flex-col items-center gap-1">
         <button
           type="button"
           onClick={() => setComposerOpen(true)}
           className="flex w-full flex-col items-center gap-1"
         >
-          {/* The bubble. It always renders — with your note in it, or a muted
-              "Note" prompt — so the avatar never shifts up and down. */}
-          <span
-            className={
-              activeNote
-                ? "relative w-full rounded-2xl bg-secondary px-2 py-1.5 text-[10px] font-medium leading-tight text-secondary-foreground"
-                : "relative w-full rounded-2xl bg-muted px-2 py-1.5 text-[10px] leading-tight text-muted-foreground"
-            }
-          >
-            <span className="line-clamp-2 block break-words">
-              {activeNote ? activeNote.text : "Note..."}
+          {/* The bubble always renders — your note, or a muted "Note" prompt —
+              so the avatar never shifts up and down. */}
+          {myNote ? (
+            <NoteBubble note={myNote} />
+          ) : (
+            <span className="relative block w-full rounded-2xl bg-muted px-2 py-1.5 text-[10px] leading-tight text-muted-foreground">
+              <span className="line-clamp-2 block break-words">Note...</span>
+              <span className="absolute -bottom-[3px] left-1/2 size-2 -translate-x-1/2 rotate-45 rounded-[1px] bg-muted" />
             </span>
-
-            {/* Music line, only when a song is attached. */}
-            {track && (
-              <span className="mt-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">
-                <Music className="size-2.5 shrink-0" />
-                <span className="truncate">{track.title}</span>
-              </span>
-            )}
-
-            {/* Little tail pointing down at the avatar. */}
-            <span
-              className={`absolute -bottom-[3px] left-1/2 size-2 -translate-x-1/2 rotate-45 rounded-[1px] ${
-                activeNote ? "bg-secondary" : "bg-muted"
-              }`}
-            />
-          </span>
+          )}
 
           <span className="relative">
             <StoryRing
@@ -96,7 +88,7 @@ export function NotesRail() {
               hasUnviewed={hasUnviewed}
               size="lg"
             />
-            {!activeNote && (
+            {!myNote && (
               <span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground">
                 <Plus className="size-2.5" strokeWidth={3} />
               </span>
@@ -109,9 +101,7 @@ export function NotesRail() {
           <button
             type="button"
             onClick={togglePlay}
-            aria-label={
-              isPlaying ? `Pause ${track.title}` : `Play ${track.title}`
-            }
+            aria-label={isPlaying ? `Pause ${myTrack.title}` : `Play ${myTrack.title}`}
             className="absolute right-0 top-0 z-10 grid size-5 place-items-center rounded-full border-2 border-background bg-[linear-gradient(135deg,#ee2a7b,#6228d7)] text-white shadow-soft transition-transform duration-200 ease-spring hover:scale-110 active:scale-90"
           >
             {isPlaying ? (
@@ -129,7 +119,7 @@ export function NotesRail() {
         {canPlay && (
           <audio
             ref={audioRef}
-            src={track.previewUrl ?? undefined}
+            src={myTrack.previewUrl ?? undefined}
             loop
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
@@ -137,7 +127,26 @@ export function NotesRail() {
         )}
       </div>
 
-      <NoteComposerModal open={composerOpen} onOpenChange={setComposerOpen} />
+      {/* Notes from people you follow — each links to their profile. */}
+      {otherNotes.map((note) => (
+        <Link
+          key={note.id}
+          href={`/${note.author.username}`}
+          className="flex w-[72px] shrink-0 flex-col items-center gap-1"
+        >
+          <NoteBubble note={note} />
+          <UserAvatar user={note.author} size="lg" />
+          <span className="w-full truncate text-center text-[11px] text-muted-foreground">
+            {note.author.username}
+          </span>
+        </Link>
+      ))}
+
+      <NoteComposerModal
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
+        note={myNote}
+      />
     </div>
   );
 }

@@ -1,17 +1,17 @@
 import { Music } from "lucide-react";
-import type { Note } from "@/store/useNotesStore";
 
 /**
  * The little speech-bubble pill that shows a note's text above someone's
  * avatar, with a small tail pointing down. Shared by every place a note can
- * appear — the messages rail, the feed's stories bar, and your own profile
- * header — so the look stays identical everywhere.
+ * appear — the messages rail and a profile header — so the look stays
+ * identical everywhere. Takes just the fields it renders, so both the API
+ * `Note` and any lighter note shape can be passed.
  */
 export function NoteBubble({
   note,
   className = "",
 }: {
-  note: Note;
+  note: { text: string; music?: { title: string } | null };
   className?: string;
 }) {
   return (

@@ -4,18 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { StoryRing } from "@/components/feed/StoryRing";
-import { NoteBubble } from "@/components/shared/NoteBubble";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
 
 export function StoriesBar() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const note = useNotesStore((state) => state.note);
-  const activeNote = note && !isNoteExpired(note) ? note : null;
 
   // `/stories/feed` only returns stories from people you follow, never your
   // own — fetch those separately.
@@ -38,32 +34,43 @@ export function StoriesBar() {
   return (
     <div className="no-scrollbar flex gap-4 overflow-x-auto border-b border-border px-4 py-4">
       {currentUser && (
-        <button
-          type="button"
-          onClick={() =>
-            hasMyStories
-              ? router.push(`/stories?u=${currentUser.username}`)
-              : router.push("/stories/create")
-          }
-          className="flex w-16 shrink-0 flex-col items-center gap-1"
-        >
-          {activeNote && <NoteBubble note={activeNote} />}
+        <div className="flex w-16 shrink-0 flex-col items-center gap-1">
+          {/* The avatar and the "+" are separate buttons (a button inside a
+              button is invalid HTML). Tapping the avatar opens your existing
+              story, or the create page if you have none. */}
           <div className="relative">
-            <StoryRing
-              user={currentUser}
-              hasStory={hasMyStories}
-              hasUnviewed={myStoriesHaveUnviewed}
-            />
-            {!hasMyStories && (
-              <span className="absolute bottom-0 right-0 flex size-5 items-center justify-center rounded-full border-2 border-background bg-[linear-gradient(135deg,#f9ce34,#ee2a7b_55%,#6228d7)] text-white shadow-soft">
-                <Plus className="size-3" strokeWidth={2.5} />
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={() =>
+                hasMyStories
+                  ? router.push(`/stories?u=${currentUser.username}`)
+                  : router.push("/stories/create")
+              }
+              aria-label={hasMyStories ? "View your story" : "Create a story"}
+              className="block rounded-full"
+            >
+              <StoryRing
+                user={currentUser}
+                hasStory={hasMyStories}
+                hasUnviewed={myStoriesHaveUnviewed}
+              />
+            </button>
+
+            {/* Always available, so you can add another story even when you
+                already have one. */}
+            <button
+              type="button"
+              onClick={() => router.push("/stories/create")}
+              aria-label="Add a new story"
+              className="absolute bottom-0 right-0 flex size-5 items-center justify-center rounded-full border-2 border-background bg-[linear-gradient(135deg,#f9ce34,#ee2a7b_55%,#6228d7)] text-white shadow-soft transition-transform duration-200 ease-spring hover:scale-110 active:scale-90"
+            >
+              <Plus className="size-3" strokeWidth={2.5} />
+            </button>
           </div>
           <span className="w-full truncate text-center text-xs">
             Your story
           </span>
-        </button>
+        </div>
       )}
 
       {isLoading &&

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AddToHighlightMenu } from "@/components/profile/AddToHighlightMenu";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -164,6 +165,7 @@ export default function StoryArchivePage() {
                     {selected.likesCount.toLocaleString()}
                   </p>
                 </div>
+                <AddToHighlightMenu storyId={selected.id} />
                 <Button
                   variant="ghost"
                   size="icon"
