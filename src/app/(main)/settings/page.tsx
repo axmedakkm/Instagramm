@@ -6,6 +6,7 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  EyeOff,
   Lock,
   LogOut,
   Moon,
@@ -117,6 +118,16 @@ export default function SettingsPage() {
         >
           <Archive className="size-5" />
           Story archive
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/settings/story-hidden")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <EyeOff className="size-5" />
+          Hide story from
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 

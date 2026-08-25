@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Music, X } from "lucide-react";
+import { Eye, Heart, Music, Volume2, VolumeX, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -52,6 +52,10 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
+  // Starts unmuted (stories are meant to be heard); browsers that block
+  // autoplay-with-sound force this to true below, and it carries over story
+  // to story, same as tapping the speaker icon does.
+  const [isMuted, setIsMuted] = useState(false);
 
   const derivedGroupIndex = groups.findIndex(
     (group) => group.user.username === initialUsername,
@@ -136,22 +140,45 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
     return () => clearInterval(interval);
   }, [currentStory, goToNextStory, isPaused]);
 
-  // Pause video playback while the viewer is composing a reply.
+  // Pause video playback while the viewer is composing a reply. Browsers
+  // that block autoplay *with sound* reject `.play()` here — when that
+  // happens, fall back to muted (which is always allowed) so the story
+  // still plays instead of sitting frozen on its first frame, and flip the
+  // speaker icon to match reality instead of lying about it.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isPaused) video.pause();
-    else video.play().catch(() => {});
-  }, [isPaused, currentStory]);
+    if (isPaused) {
+      video.pause();
+      return;
+    }
+    video.play().catch(() => {
+      if (!video.muted) {
+        video.muted = true;
+        setIsMuted(true);
+        video.play().catch(() => {});
+      }
+    });
+  }, [isPaused, currentStory, isMuted]);
 
   // Keep the story's music in step with the pause state (and stop it when the
-  // story changes to one without music).
+  // story changes to one without music). Same autoplay-blocked fallback as
+  // the video above.
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (isPaused) audio.pause();
-    else audio.play().catch(() => {});
-  }, [isPaused, currentStory, music]);
+    if (isPaused) {
+      audio.pause();
+      return;
+    }
+    audio.play().catch(() => {
+      if (!audio.muted) {
+        audio.muted = true;
+        setIsMuted(true);
+        audio.play().catch(() => {});
+      }
+    });
+  }, [isPaused, currentStory, music, isMuted]);
 
   if (!currentGroup || !currentStory) {
     return (
@@ -202,13 +229,29 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             date={currentStory.createdAt}
             className="text-xs text-white/70"
           />
-          <button
-            type="button"
-            onClick={close}
-            className="ml-auto rounded-full p-1 text-white"
-          >
-            <X className="size-6" />
-          </button>
+          <div className="ml-auto flex items-center gap-1">
+            {(currentStory.mediaType === "video" || !!music) && (
+              <button
+                type="button"
+                onClick={() => setIsMuted((m) => !m)}
+                aria-label={isMuted ? "Unmute" : "Mute"}
+                className="rounded-full p-1 text-white"
+              >
+                {isMuted ? (
+                  <VolumeX className="size-5" />
+                ) : (
+                  <Volume2 className="size-5" />
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={close}
+              className="rounded-full p-1 text-white"
+            >
+              <X className="size-6" />
+            </button>
+          </div>
         </div>
 
         {currentStory.mediaType === "video" ? (
@@ -217,6 +260,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             ref={videoRef}
             src={currentStory.mediaUrl}
             autoPlay
+            muted={isMuted}
             playsInline
             className="size-full object-contain"
             onTimeUpdate={(event) => {
@@ -238,7 +282,22 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
         )}
 
         {currentStory.caption && (
-          <p className="pointer-events-none absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 text-center text-xl font-semibold text-white drop-shadow-lg">
+          <p
+            style={
+              currentStory.captionPosition
+                ? {
+                    left: `${currentStory.captionPosition.x}%`,
+                    top: `${currentStory.captionPosition.y}%`,
+                    transform: "translate(-50%, -50%)",
+                  }
+                : undefined
+            }
+            className={
+              currentStory.captionPosition
+                ? "pointer-events-none absolute z-10 max-w-[85%] text-center text-xl font-semibold text-white drop-shadow-lg"
+                : "pointer-events-none absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 text-center text-xl font-semibold text-white drop-shadow-lg"
+            }
+          >
             {currentStory.caption}
           </p>
         )}
@@ -255,6 +314,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
                 ref={audioRef}
                 src={music.previewUrl}
                 autoPlay
+                muted={isMuted}
                 loop
               />
             )}
@@ -282,16 +342,24 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
           className="absolute inset-y-0 right-0 bottom-20 z-10 w-1/3"
         />
 
-        <div className="absolute inset-x-3 bottom-4 z-20">
+        <div className="absolute inset-x-3 bottom-4 z-20 flex items-center gap-2">
           {isOwnStory ? (
-            <button
-              type="button"
-              onClick={() => setViewersOpen(true)}
-              className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-sm text-white backdrop-blur"
-            >
-              <Eye className="size-4" />
-              Seen by {currentStory.viewsCount}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setViewersOpen(true)}
+                className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-sm text-white backdrop-blur"
+              >
+                <Eye className="size-4" />
+                Seen by {currentStory.viewsCount}
+              </button>
+              {currentStory.likesCount > 0 && (
+                <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-sm text-white backdrop-blur">
+                  <Heart className="size-4 fill-destructive text-destructive" />
+                  {currentStory.likesCount}
+                </span>
+              )}
+            </>
           ) : (
             <StoryReplyBar story={currentStory} onActivityChange={setIsPaused} />
           )}

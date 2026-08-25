@@ -1,10 +1,18 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ImagePlus, Loader2, Music, X } from "lucide-react";
+import {
+  ImagePlus,
+  Loader2,
+  Music,
+  Pause,
+  Play,
+  X,
+} from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { toast } from "sonner";
 import { MusicPicker } from "@/components/shared/MusicPicker";
 import { Button } from "@/components/ui/button";
@@ -21,6 +29,10 @@ import type { MusicTrack } from "@/types";
 
 /** Caption can't run away past what's readable on a phone-sized frame. */
 const CAPTION_MAX_LENGTH = 200;
+/** Keeps a dragged caption's center from sliding fully off the frame. */
+const POSITION_BOUNDS = { min: 8, max: 92 };
+/** A pointer move under this many pixels counts as a tap, not a drag. */
+const DRAG_THRESHOLD_PX = 6;
 
 /**
  * Full-page story composer — same frame the viewer uses (see `StoryViewer`),
@@ -32,12 +44,16 @@ export function CreateStoryComposer() {
   const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const previewAudioRef = useRef<HTMLAudioElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [music, setMusic] = useState<MusicTrack | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [caption, setCaption] = useState("");
   const [captionDraft, setCaptionDraft] = useState("");
+  const [captionPosition, setCaptionPosition] = useState({ x: 50, y: 50 });
   const [isEditingCaption, setIsEditingCaption] = useState(false);
   const [musicSheetOpen, setMusicSheetOpen] = useState(false);
 
@@ -59,8 +75,20 @@ export function CreateStoryComposer() {
     setIsEditingCaption(true);
   };
 
+  const toggleMusicPreview = () => {
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  };
+
   const mutation = useMutation({
-    mutationFn: () => storiesApi.create(file as File, music, caption.trim()),
+    mutationFn: () =>
+      storiesApi.create(file as File, {
+        music,
+        caption: caption.trim(),
+        captionPosition,
+      }),
     onSuccess: () => {
       toast.success("Your story was shared!");
       // The archive page reads straight from `GET /stories/me/archive`, so
@@ -125,11 +153,14 @@ export function CreateStoryComposer() {
   // Step 2: full-bleed editor over the picked media.
   return (
     <div className="relative flex h-screen w-full items-center justify-center bg-black">
-      <div className="relative aspect-[9/16] h-full max-h-screen w-full max-w-md overflow-hidden bg-neutral-900">
+      <div
+        ref={frameRef}
+        className="relative aspect-[9/16] h-full max-h-screen w-full max-w-md touch-none overflow-hidden bg-neutral-900"
+      >
         {file.type.startsWith("video/") ? (
           <video
             src={previewUrl}
-            className="size-full object-contain"
+            className="pointer-events-none size-full object-contain"
             autoPlay
             loop
             muted
@@ -140,7 +171,7 @@ export function CreateStoryComposer() {
             src={previewUrl}
             alt="Story preview"
             fill
-            className="object-contain"
+            className="pointer-events-none object-contain"
             unoptimized
           />
         )}
@@ -151,7 +182,7 @@ export function CreateStoryComposer() {
             type="button"
             onClick={discard}
             aria-label="Discard"
-            className="rounded-full bg-black/40 p-2 text-white backdrop-blur"
+            className="grid size-9 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
           >
             <X className="size-5" />
           </button>
@@ -160,7 +191,7 @@ export function CreateStoryComposer() {
               type="button"
               onClick={openCaptionEditor}
               aria-label="Add text"
-              className="rounded-full bg-black/40 px-3.5 py-2 text-sm font-bold text-white backdrop-blur"
+              className="grid h-9 place-items-center rounded-full bg-black/40 px-3.5 text-sm font-bold text-white backdrop-blur transition-colors hover:bg-black/60"
             >
               Aa
             </button>
@@ -168,36 +199,63 @@ export function CreateStoryComposer() {
               type="button"
               onClick={() => setMusicSheetOpen(true)}
               aria-label={music ? "Change music" : "Add music"}
-              className="rounded-full bg-black/40 p-2 text-white backdrop-blur"
+              className="grid size-9 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
             >
               <Music className="size-5" />
             </button>
           </div>
         </div>
 
-        {/* Caption preview — tap to edit again. */}
+        {/* Caption preview — drag to reposition, tap (without dragging) to
+            edit its text again. */}
         {caption && !isEditingCaption && (
-          <button
-            type="button"
-            onClick={openCaptionEditor}
-            className="absolute inset-x-6 top-1/2 z-10 -translate-y-1/2 text-center text-xl font-semibold text-white drop-shadow-lg"
-          >
-            {caption}
-          </button>
+          <DraggableCaption
+            frameRef={frameRef}
+            text={caption}
+            position={captionPosition}
+            onPositionChange={setCaptionPosition}
+            onTap={openCaptionEditor}
+          />
         )}
 
-        {/* Music pill — tap to change or remove. */}
+        {/* Music pill — the play button previews the 30s clip right here so
+            you can hear what you're picking before it's posted; tapping the
+            rest of the pill reopens the picker. */}
         {music && (
-          <button
-            type="button"
-            onClick={() => setMusicSheetOpen(true)}
-            className="absolute inset-x-3 bottom-20 z-10 mx-auto flex w-fit max-w-[80%] items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white backdrop-blur"
-          >
-            <Music className="size-3.5 shrink-0" />
-            <span className="truncate">
-              {music.title} · {music.artist}
-            </span>
-          </button>
+          <div className="absolute inset-x-3 bottom-20 z-10 mx-auto flex w-fit max-w-[80%] items-center gap-1.5 rounded-full bg-black/40 py-1 pl-1 pr-3 text-xs font-medium text-white backdrop-blur">
+            <button
+              type="button"
+              onClick={toggleMusicPreview}
+              disabled={!music.previewUrl}
+              aria-label={isPreviewPlaying ? "Pause preview" : "Play preview"}
+              className="grid size-6 shrink-0 place-items-center rounded-full bg-white/20 disabled:opacity-40"
+            >
+              {isPreviewPlaying ? (
+                <Pause className="size-3 fill-current" />
+              ) : (
+                <Play className="size-3 translate-x-px fill-current" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMusicSheetOpen(true)}
+              className="min-w-0"
+            >
+              <Music className="mr-1 inline size-3 shrink-0 -translate-y-px" />
+              <span className="truncate align-middle">
+                {music.title} · {music.artist}
+              </span>
+            </button>
+            {music.previewUrl && (
+              <audio
+                ref={previewAudioRef}
+                src={music.previewUrl}
+                loop
+                onPlay={() => setIsPreviewPlaying(true)}
+                onPause={() => setIsPreviewPlaying(false)}
+              />
+            )}
+          </div>
         )}
 
         {/* Caption editor overlay — dims the media while typing. */}
@@ -228,6 +286,9 @@ export function CreateStoryComposer() {
                 className="w-full resize-none border-none bg-transparent text-center text-2xl font-semibold text-white placeholder:text-white/50 focus:outline-none focus:ring-0"
               />
             </div>
+            <p className="pb-6 text-center text-xs text-white/50">
+              Drag the text on the frame to move it
+            </p>
           </div>
         )}
 
@@ -257,5 +318,74 @@ export function CreateStoryComposer() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * The caption text, positioned absolutely within `frameRef` and draggable
+ * by pointer. A pointer-down/up with barely any movement in between is
+ * treated as a tap (`onTap`) instead of a drag, so it stays editable.
+ */
+function DraggableCaption({
+  frameRef,
+  text,
+  position,
+  onPositionChange,
+  onTap,
+}: {
+  frameRef: RefObject<HTMLDivElement | null>;
+  text: string;
+  position: { x: number; y: number };
+  onPositionChange: (position: { x: number; y: number }) => void;
+  onTap: () => void;
+}) {
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const startRef = useRef({ x: 0, y: 0 });
+
+  const clamp = (value: number) =>
+    Math.min(POSITION_BOUNDS.max, Math.max(POSITION_BOUNDS.min, value));
+
+  const updateFromPointer = (clientX: number, clientY: number) => {
+    const rect = frameRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    onPositionChange({
+      x: clamp(((clientX - rect.left) / rect.width) * 100),
+      y: clamp(((clientY - rect.top) / rect.height) * 100),
+    });
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingRef.current = true;
+    movedRef.current = false;
+    startRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!draggingRef.current) return;
+    const dx = event.clientX - startRef.current.x;
+    const dy = event.clientY - startRef.current.y;
+    if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) movedRef.current = true;
+    updateFromPointer(event.clientX, event.clientY);
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    draggingRef.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!movedRef.current) onTap();
+  };
+
+  return (
+    <button
+      type="button"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      style={{ left: `${position.x}%`, top: `${position.y}%` }}
+      className="absolute z-10 max-w-[85%] -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none select-none text-center text-xl font-semibold text-white drop-shadow-lg active:cursor-grabbing"
+    >
+      {text}
+    </button>
   );
 }
