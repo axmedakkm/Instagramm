@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
   MoreHorizontal,
@@ -30,10 +30,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { conversationsApi } from "@/services/api";
+import { conversationsApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useBlockedUsersStore } from "@/store/useBlockedUsersStore";
 import {
   isConversationHidden,
   useConversationPrefsStore,
@@ -50,6 +49,7 @@ function otherParticipant(conversation: Conversation, currentUserId?: string) {
 export function ConversationList({ activeId }: { activeId?: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const [composeOpen, setComposeOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -58,14 +58,25 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   const hiddenAt = useConversationPrefsStore((state) => state.hiddenAt);
   const togglePin = useConversationPrefsStore((state) => state.togglePin);
   const hideConversation = useConversationPrefsStore((state) => state.hide);
-  const blockedUsers = useBlockedUsersStore((state) => state.users);
-  const blockUser = useBlockedUsersStore((state) => state.block);
-  const blockedIds = new Set(blockedUsers.map((u) => u.id));
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.conversations.list,
     queryFn: () => conversationsApi.list(),
     refetchInterval: 5000,
+  });
+
+  const { data: blockedUsers } = useQuery({
+    queryKey: queryKeys.users.blocked,
+    queryFn: usersApi.blocked,
+  });
+  const blockedIds = new Set((blockedUsers ?? []).map((u) => u.id));
+
+  const blockMutation = useMutation({
+    mutationFn: (userId: string) => usersApi.block(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.blocked });
+    },
+    onError: () => toast.error("Couldn't block that account."),
   });
 
   // Chats you've "deleted" drop out of your own list — until a new message
@@ -114,8 +125,9 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   };
 
   const handleBlock = (conversationId: string, user: UserSummary) => {
-    blockUser(user);
-    toast.success(`@${user.username} blocked`);
+    blockMutation.mutate(user.id, {
+      onSuccess: () => toast.success(`@${user.username} blocked`),
+    });
     if (activeId === conversationId || pathname === `/messages/${conversationId}`) {
       router.push("/messages");
     }

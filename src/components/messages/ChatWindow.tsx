@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { conversationsApi, messagesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useConversationPrefsStore } from "@/store/useConversationPrefsStore";
 import type { Message } from "@/types";
 
 /** Falls back to short-polling whenever the realtime socket is down. */
@@ -57,7 +58,25 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
     refetchInterval: isConnected ? false : POLL_INTERVAL_MS,
   });
 
-  const messages = useMemo(() => messagesPage?.items ?? [], [messagesPage]);
+  // "Delete" (see `useConversationPrefsStore`) never touches the backend —
+  // the conversation and its history are untouched, so the other person's
+  // copy is unaffected, and it just quietly reappears in *your* list once a
+  // new message arrives. But re-showing the old messages too, right where
+  // you deleted them, would make the delete look like it did nothing — so
+  // this cuts the thread at the moment it was deleted: only messages sent
+  // after that point are shown, same as re-starting a chat from empty. The
+  // cutoff itself doesn't expire the way `isConversationHidden` does for the
+  // list — it's a permanent watermark for this conversation, not a "is it
+  // currently hidden" check.
+  const hiddenAt = useConversationPrefsStore(
+    (state) => state.hiddenAt[conversationId],
+  );
+  const messages = useMemo(() => {
+    const items = messagesPage?.items ?? [];
+    if (!hiddenAt) return items;
+    const cutoff = new Date(hiddenAt).getTime();
+    return items.filter((message) => new Date(message.createdAt).getTime() > cutoff);
+  }, [messagesPage, hiddenAt]);
   const other = conversation?.participants.find(
     (p) => p.id !== currentUser?.id,
   );
