@@ -29,6 +29,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  conversationTitle,
+  isGroupConversation,
+  otherParticipants,
+} from "@/lib/conversation";
 import { cn } from "@/lib/utils";
 import { conversationsApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
@@ -38,13 +43,6 @@ import {
   useConversationPrefsStore,
 } from "@/store/useConversationPrefsStore";
 import type { Conversation, UserSummary } from "@/types";
-
-function otherParticipant(conversation: Conversation, currentUserId?: string) {
-  return (
-    conversation.participants.find((p) => p.id !== currentUserId) ??
-    conversation.participants[0]
-  );
-}
 
 export function ConversationList({ activeId }: { activeId?: string }) {
   const router = useRouter();
@@ -80,8 +78,9 @@ export function ConversationList({ activeId }: { activeId?: string }) {
   });
 
   // Chats you've "deleted" drop out of your own list — until a new message
-  // arrives, same as Instagram. Chats with someone you've blocked drop out
-  // too, but stay out (no unblock-from-the-inbox way back).
+  // arrives, same as Instagram. 1:1 chats with someone you've blocked drop
+  // out too, but stay out (no unblock-from-the-inbox way back). Groups are
+  // left alone — blocking one member shouldn't hide a whole group thread.
   const allConversations = (data?.items ?? []).filter((conversation) => {
     if (
       isConversationHidden(
@@ -91,19 +90,21 @@ export function ConversationList({ activeId }: { activeId?: string }) {
     ) {
       return false;
     }
-    const other = otherParticipant(conversation, currentUser?.id);
-    return !blockedIds.has(other.id);
+    if (isGroupConversation(conversation)) return true;
+    const [other] = otherParticipants(conversation, currentUser?.id);
+    return !other || !blockedIds.has(other.id);
   });
 
-  // Filter locally on username / full name. The whole list is already in
-  // memory, so there's no request to debounce here — unlike the Explore
-  // search, which hits the server on every change.
+  // Filter locally on username / full name (any participant, for groups).
+  // The whole list is already in memory, so there's no request to debounce
+  // here — unlike the Explore search, which hits the server on every change.
   const query = search.trim().toLowerCase();
   const matching = allConversations.filter((conversation) => {
-    const other = otherParticipant(conversation, currentUser?.id);
-    return (
-      other.username.toLowerCase().includes(query) ||
-      other.fullName.toLowerCase().includes(query)
+    const others = otherParticipants(conversation, currentUser?.id);
+    return others.some(
+      (other) =>
+        other.username.toLowerCase().includes(query) ||
+        other.fullName.toLowerCase().includes(query),
     );
   });
 
@@ -278,7 +279,9 @@ function ConversationRow({
   onDelete: () => void;
   onBlock: (user: UserSummary) => void;
 }) {
-  const other = otherParticipant(conversation, currentUserId);
+  const others = otherParticipants(conversation, currentUserId);
+  const isGroup = isGroupConversation(conversation);
+  const [leadOther] = others;
 
   return (
     <Link
@@ -291,13 +294,13 @@ function ConversationRow({
       {isActive && (
         <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-[linear-gradient(180deg,#f9ce34,#ee2a7b,#6228d7)]" />
       )}
-      <UserAvatar user={other} size="lg" />
+      {leadOther && <UserAvatar user={leadOther} size="lg" />}
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1 truncate text-sm font-medium">
           {isPinned && (
             <Pin className="size-3 shrink-0 fill-muted-foreground text-muted-foreground" />
           )}
-          <span className="truncate">{other.username}</span>
+          <span className="truncate">{conversationTitle(others)}</span>
         </p>
         <p
           className={cn(
@@ -356,16 +359,18 @@ function ConversationRow({
             )}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={(event) => {
-              event.preventDefault();
-              onBlock(other);
-            }}
-          >
-            <Ban className="size-4" />
-            Block user
-          </DropdownMenuItem>
+          {!isGroup && leadOther && (
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={(event) => {
+                event.preventDefault();
+                onBlock(leadOther);
+              }}
+            >
+              <Ban className="size-4" />
+              Block user
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             variant="destructive"
             onClick={(event) => {

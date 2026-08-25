@@ -299,12 +299,18 @@ export const conversationsApi = {
 
   /**
    * There's no `GET /conversations/:id` — creating with the same
-   * participant just returns the existing conversation, so this doubles as
-   * "get or create" for a 1:1 thread.
+   * participant set just returns the existing conversation (exact-match, so
+   * [a,b] and [a,b,c] never collide), so this doubles as "get or create" —
+   * for a 1:1 thread with one id, or a group with more than one.
    */
   getOrCreateWithUser: (userId: string) =>
     api
       .post<Conversation>("/conversations", { participantIds: [userId] })
+      .then((res) => res.data),
+
+  createGroup: (participantIds: string[]) =>
+    api
+      .post<Conversation>("/conversations", { participantIds })
       .then((res) => res.data),
 
   messages: (conversationId: string, page?: number) =>
