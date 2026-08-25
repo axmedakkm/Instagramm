@@ -18,10 +18,10 @@ const NOTE_LIFETIME_MS = 24 * 60 * 60 * 1000;
 /**
  * Your own note, kept locally.
  *
- * The backend has no notes endpoint, so — exactly like `useSavedPostsStore`
- * and `useStoryArchiveStore` — this is a localStorage-backed store. That also
- * means only *your* note exists: other people's notes would have to come from
- * a server that can share them.
+ * The backend has no notes endpoint, so this is a localStorage-backed store
+ * (same idea as `useConversationPrefsStore`'s pin/delete). That also means
+ * only *your* note exists: other people's notes would have to come from a
+ * server that can share them.
  */
 interface NotesState {
   note: Note | null;

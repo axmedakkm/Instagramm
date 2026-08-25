@@ -28,8 +28,13 @@ import {
 import { conversationsApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
+<<<<<<< HEAD
 import { useUIStore } from "@/store/useUIStore";
 import type { User } from "@/types";
+=======
+import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
+import type { Conversation, PaginatedResponse, User } from "@/types";
+>>>>>>> 684f43ea61fadf228d86b4716bb4113ea65d2e87
 
 export function ProfileHeader({ profile }: { profile: User }) {
   const router = useRouter();
@@ -44,7 +49,25 @@ export function ProfileHeader({ profile }: { profile: User }) {
 
   const startConversation = useMutation({
     mutationFn: () => conversationsApi.getOrCreateWithUser(profile.id),
-    onSuccess: (conversation) => router.push(`/messages/${conversation.id}`),
+    onSuccess: (conversation) => {
+      // Same reasoning as `NewMessageModal`: seed the list query directly so
+      // `ChatWindow` (which only reads this cache, no `GET /conversations/:id`)
+      // has the conversation the moment it mounts, brand new or not.
+      queryClient.setQueryData<PaginatedResponse<Conversation>>(
+        queryKeys.conversations.list,
+        (old) =>
+          old
+            ? {
+                ...old,
+                items: [
+                  conversation,
+                  ...old.items.filter((item) => item.id !== conversation.id),
+                ],
+              }
+            : old,
+      );
+      router.push(`/messages/${conversation.id}`);
+    },
     onError: () => toast.error("Couldn't start that conversation."),
   });
 

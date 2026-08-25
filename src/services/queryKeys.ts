@@ -14,6 +14,8 @@ export const queryKeys = {
     following: (userId: string) => ["users", userId, "following"] as const,
     followRequests: ["users", "me", "follow-requests"] as const,
     blocked: ["users", "me", "blocked"] as const,
+    saved: ["users", "me", "saved"] as const,
+    storyHidden: ["users", "me", "story-hidden"] as const,
   },
   posts: {
     feed: ["posts", "feed"] as const,

@@ -32,7 +32,6 @@ import { cn } from "@/lib/utils";
 import { postsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useSavedPostsStore } from "@/store/useSavedPostsStore";
 
 import type { Post } from "@/types";
 
@@ -43,10 +42,6 @@ const CAPTION_CLAMP_LENGTH = 140;
 export function PostCard({ post }: { post: Post }) {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
-  const isSaved = useSavedPostsStore((state) =>
-    state.posts.some((p) => p.id === post.id),
-  );
-  const toggleSaved = useSavedPostsStore((state) => state.toggle);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   // Only the comment *button* should pop the keyboard; opening the sheet from
@@ -83,18 +78,29 @@ export function PostCard({ post }: { post: Post }) {
     },
   });
 
-  // Best-effort backend sync; the local saved store is the source of truth
-  // for the Saved page since there's no endpoint to list saved posts.
   const saveMutation = useMutation({
     mutationFn: () =>
-      isSaved ? postsApi.unsave(post.id) : postsApi.save(post.id),
+      post.isSavedByMe ? postsApi.unsave(post.id) : postsApi.save(post.id),
+    onMutate: () => {
+      patchPostInCaches(queryClient, post.id, (item) => ({
+        ...item,
+        isSavedByMe: !item.isSavedByMe,
+      }));
+    },
+    onSuccess: () => {
+      toast.success(post.isSavedByMe ? "Removed from saved" : "Saved");
+      // The Saved page reads its own list query, not the feed/explore/detail
+      // caches `patchPostInCaches` covers — refetch it next time it's open.
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.saved });
+    },
+    onError: () => {
+      patchPostInCaches(queryClient, post.id, (item) => ({
+        ...item,
+        isSavedByMe: post.isSavedByMe,
+      }));
+      toast.error("Couldn't update saved. Please try again.");
+    },
   });
-
-  const handleToggleSave = () => {
-    toast.success(isSaved ? "Removed from saved" : "Saved");
-    toggleSaved(post);
-    saveMutation.mutate();
-  };
 
   const deleteMutation = useMutation({
     mutationFn: () => postsApi.delete(post.id),
@@ -302,15 +308,16 @@ export function PostCard({ post }: { post: Post }) {
         </div>
         <button
           type="button"
-          onClick={handleToggleSave}
-          aria-label={isSaved ? "Unsave" : "Save"}
+          onClick={() => saveMutation.mutate()}
+          aria-label={post.isSavedByMe ? "Unsave" : "Save"}
           className="grid size-10 place-items-center rounded-full transition-all duration-200 ease-spring hover:bg-accent hover:scale-110 active:scale-90"
         >
           <Bookmark
-            key={String(isSaved)}
+            key={String(post.isSavedByMe)}
             className={cn(
               "size-6",
-              isSaved && "animate-like-pop fill-foreground text-foreground",
+              post.isSavedByMe &&
+                "animate-like-pop fill-foreground text-foreground",
             )}
           />
         </button>

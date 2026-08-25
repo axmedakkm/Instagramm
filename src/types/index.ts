@@ -132,6 +132,9 @@ export interface Story {
   caption: string;
   /** The music sticker attached at upload time, or null. */
   music: MusicTrack | null;
+  /** Where the caption was dragged to in the composer, as a percentage of
+   * the frame (0-100, top-left origin). Null centers it. */
+  captionPosition: { x: number; y: number } | null;
   viewsCount: number;
   isViewedByMe: boolean;
   likesCount: number;
