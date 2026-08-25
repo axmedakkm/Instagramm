@@ -71,8 +71,6 @@ export function StoryReplyBar({
   const [justLiked, setJustLiked] = useState(false);
   const reply = useStoryReply(story);
   const like = useStoryLike(story);
-  const recorder = useVoiceRecorder();
-  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Pause the story while the viewer is typing a comment.
   useEffect(() => {
