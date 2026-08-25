@@ -4,18 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { StoryRing } from "@/components/feed/StoryRing";
-import { NoteBubble } from "@/components/shared/NoteBubble";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
 
 export function StoriesBar() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const note = useNotesStore((state) => state.note);
-  const activeNote = note && !isNoteExpired(note) ? note : null;
 
   // `/stories/feed` only returns stories from people you follow, never your
   // own — fetch those separately.
@@ -47,7 +43,6 @@ export function StoriesBar() {
           }
           className="flex w-16 shrink-0 flex-col items-center gap-1"
         >
-          {activeNote && <NoteBubble note={activeNote} />}
           <div className="relative">
             <StoryRing
               user={currentUser}

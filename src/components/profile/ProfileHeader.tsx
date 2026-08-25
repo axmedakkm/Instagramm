@@ -20,7 +20,6 @@ import {
 import { conversationsApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
 import type { User } from "@/types";
 
 export function ProfileHeader({ profile }: { profile: User }) {
@@ -78,10 +77,10 @@ export function ProfileHeader({ profile }: { profile: User }) {
   const hasStory = !!stories && stories.length > 0;
   const hasUnviewed = !!stories?.some((story) => !story.isViewedByMe);
 
-  // Your own note, if it's still alive — shown as a bubble above your avatar,
-  // same as it appears in the messages rail and the feed's stories bar.
-  const note = useNotesStore((state) => state.note);
-  const activeNote = isOwner && note && !isNoteExpired(note) ? note : null;
+  // This user's active note (from the API), shown as a bubble above the
+  // avatar — for anyone's profile, not just your own, same as the messages
+  // rail. Null when they have no live note.
+  const activeNote = profile.note;
 
   return (
     <header className="px-4 pb-6 pt-6 sm:pt-8">

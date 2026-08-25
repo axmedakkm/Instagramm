@@ -1,15 +1,22 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Music, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, MoreHorizontal, Music, Trash2, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { StoryReplyBar } from "@/components/stories/StoryReplyBar";
 import { StoryViewersSheet } from "@/components/stories/StoryViewersSheet";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { TimeAgo } from "@/components/shared/TimeAgo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { storiesApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -100,6 +107,28 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
   };
 
   const queryClient = useQueryClient();
+
+  const deleteMutation = useMutation({
+    mutationFn: (storyId: string) => storiesApi.delete(storyId),
+    onSuccess: () => {
+      toast.success("Story deleted");
+      // Refresh both the feed and your own stories so the deleted one drops
+      // out everywhere, then move on: to the next story if there is one, or
+      // back to the feed if that was your last.
+      queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
+      if (currentUser) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.stories.byUser(currentUser.id),
+        });
+      }
+      if (currentGroup && currentGroup.stories.length > 1) {
+        goToNextStory();
+      } else {
+        router.push("/feed");
+      }
+    },
+    onError: () => toast.error("Couldn't delete that story."),
+  });
 
   useEffect(() => {
     if (!currentStory || currentStory.isViewedByMe) return;
@@ -202,13 +231,40 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             date={currentStory.createdAt}
             className="text-xs text-white/70"
           />
-          <button
-            type="button"
-            onClick={close}
-            className="ml-auto rounded-full p-1 text-white"
-          >
-            <X className="size-6" />
-          </button>
+          <div className="ml-auto flex items-center gap-1">
+            {isOwnStory && (
+              // Pause the story timer while the menu is open so it doesn't
+              // advance out from under you mid-decision.
+              <DropdownMenu onOpenChange={setIsPaused}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Story options"
+                    className="rounded-full p-1 text-white"
+                  >
+                    <MoreHorizontal className="size-6" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => deleteMutation.mutate(currentStory.id)}
+                  >
+                    <Trash2 className="size-4" />
+                    Delete story
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <button
+              type="button"
+              onClick={close}
+              className="rounded-full p-1 text-white"
+            >
+              <X className="size-6" />
+            </button>
+          </div>
         </div>
 
         {currentStory.mediaType === "video" ? (

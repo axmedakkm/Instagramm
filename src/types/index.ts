@@ -35,7 +35,25 @@ export interface User extends UserSummary {
   /** Whether *you've* blocked this user (not the reverse — if they'd blocked
    * you, this profile would never have loaded in the first place). */
   isBlockedByMe: boolean;
+  /** This user's active note (or null), so the profile can show the bubble. */
+  note: Note | null;
+  /** Whether this user has a live (unexpired) story — drives the story ring. */
+  hasActiveStory: boolean;
   createdAt: string;
+}
+
+/**
+ * A short "note" a user leaves above the DM inbox. `GET /notes` returns your
+ * own plus one from each person you follow; `toUser` embeds a user's own note
+ * on their profile. Mirrors the backend `Note` schema.
+ */
+export interface Note {
+  id: string;
+  author: UserSummary;
+  text: string;
+  music: MusicTrack | null;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface AuthTokens {
