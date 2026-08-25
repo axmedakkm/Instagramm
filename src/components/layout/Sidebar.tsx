@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import {
   Film,
   Heart,
@@ -17,9 +16,8 @@ import { AccountMenuContent } from "@/components/layout/AccountMenuContent";
 import { BrandMark } from "@/components/shared/BrandMark";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { cn } from "@/lib/utils";
-import { notificationsApi } from "@/services/api";
-import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useUIStore } from "@/store/useUIStore";
 
@@ -35,27 +33,23 @@ export function Sidebar() {
   // them.
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { data: notifications } = useQuery({
-    queryKey: queryKeys.notifications.list,
-    queryFn: () => notificationsApi.list(),
-    staleTime: 15 * 1000,
-    refetchInterval: 30 * 1000,
-  });
-
-  const unreadCount =
-    notifications?.items.filter((notification) => !notification.isRead)
-      .length ?? 0;
+  const { unreadMessages, unreadNotifications } = useUnreadCounts();
 
   const navItems = [
     { href: "/feed", label: "Home", icon: Home },
     { href: "/explore", label: "Search", icon: Search },
     { href: "/reels", label: "Reels", icon: Film },
-    { href: "/messages", label: "Messages", icon: MessageCircle },
+    {
+      href: "/messages",
+      label: "Messages",
+      icon: MessageCircle,
+      badge: unreadMessages,
+    },
     {
       href: "/notifications",
       label: "Notifications",
       icon: Heart,
-      badge: unreadCount,
+      badge: unreadNotifications,
     },
   ];
 

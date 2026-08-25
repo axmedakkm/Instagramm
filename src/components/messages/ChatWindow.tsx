@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCall } from "@/components/providers/CallProvider";
 import { MessageInput } from "@/components/messages/MessageInput";
+import { VoiceMessage } from "@/components/messages/VoiceMessage";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
@@ -211,11 +212,7 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                       />
                     </button>
                   ) : (
-                    <audio
-                      src={message.mediaUrl}
-                      controls
-                      className="h-9 max-w-full"
-                    />
+                    <VoiceMessage src={message.mediaUrl} />
                   ))}
                 {message.text && <p>{message.text}</p>}
                 <TimeAgo
