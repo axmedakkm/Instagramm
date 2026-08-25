@@ -5,6 +5,7 @@ import { Check, Heart, MessageCircle, UserPlus, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 import { QuickFollowButton } from "@/components/shared/QuickFollowButton";
 import { TimeAgo } from "@/components/shared/TimeAgo";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -60,12 +61,22 @@ function FollowRequestActions({ requesterId }: { requesterId: string }) {
     queryClient.invalidateQueries({ queryKey: queryKeys.users.followRequests });
   };
 
+  // A 404 here means the request is already gone (accepted/declined/
+  // cancelled elsewhere, or the notification is just stale) — there's
+  // nothing left to act on, so tell the user and refresh instead of leaving
+  // the Accept/Decline buttons stuck re-triggering the same 404.
+  const handleGone = () => {
+    toast.error("This follow request is no longer available.");
+    invalidate();
+  };
+
   const accept = useMutation({
     mutationFn: () => usersApi.acceptFollowRequest(requesterId),
     onSuccess: () => {
       setResolution("accepted");
       invalidate();
     },
+    onError: handleGone,
   });
 
   const reject = useMutation({
@@ -74,6 +85,7 @@ function FollowRequestActions({ requesterId }: { requesterId: string }) {
       setResolution("declined");
       invalidate();
     },
+    onError: handleGone,
   });
 
   if (resolution === "accepted") {

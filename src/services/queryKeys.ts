@@ -28,6 +28,7 @@ export const queryKeys = {
     feed: ["stories", "feed"] as const,
     byUser: (userId: string) => ["stories", "user", userId] as const,
     viewers: (storyId: string) => ["stories", "viewers", storyId] as const,
+    archive: ["stories", "archive"] as const,
   },
   music: {
     search: (query: string) => ["music", "search", query] as const,
