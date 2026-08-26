@@ -28,20 +28,9 @@ import {
 import { conversationsApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-<<<<<<< HEAD
-<<<<<<< HEAD
 import { useUIStore } from "@/store/useUIStore";
-import type { User } from "@/types";
-=======
 import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
 import type { Conversation, PaginatedResponse, User } from "@/types";
->>>>>>> 684f43ea61fadf228d86b4716bb4113ea65d2e87
-=======
-import { useUIStore } from "@/store/useUIStore";
-import type { User } from "@/types";
-import { isNoteExpired, useNotesStore } from "@/store/useNotesStore";
-import type { Conversation, PaginatedResponse, User } from "@/types";
->>>>>>> d1ad0c92b757ea944ee7d9422c6dbf98372df310
 
 export function ProfileHeader({ profile }: { profile: User }) {
   const router = useRouter();

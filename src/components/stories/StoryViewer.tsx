@@ -1,23 +1,7 @@
 "use client";
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, MoreHorizontal, Music, Trash2, X } from "lucide-react";
-=======
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Heart, Music, Volume2, VolumeX, X } from "lucide-react";
->>>>>>> 684f43ea61fadf228d86b4716bb4113ea65d2e87
-=======
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-<<<<<<< HEAD
-import { Eye, MoreHorizontal, Music, Trash2, X } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Heart, Music, Volume2, VolumeX, X } from "lucide-react";
->>>>>>> d1ad0c92b757ea944ee7d9422c6dbf98372df310
-=======
 import { Eye, Heart, MoreHorizontal, Music, Trash2, Volume2, VolumeX, X } from "lucide-react";
->>>>>>> db41ae3 (dsfngusgudshgfadshfhads)
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -275,10 +259,6 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             className="text-xs text-white/70"
           />
           <div className="ml-auto flex items-center gap-1">
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> d1ad0c92b757ea944ee7d9422c6dbf98372df310
             {isOwnStory && (
               // Pause the story timer while the menu is open so it doesn't
               // advance out from under you mid-decision.
@@ -303,14 +283,7 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> d1ad0c92b757ea944ee7d9422c6dbf98372df310
-=======
             )}
->>>>>>> db41ae3 (dsfngusgudshgfadshfhads)
             {(currentStory.mediaType === "video" || !!music) && (
               <button
                 type="button"
@@ -324,10 +297,6 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
                   <Volume2 className="size-5" />
                 )}
               </button>
-<<<<<<< HEAD
->>>>>>> 684f43ea61fadf228d86b4716bb4113ea65d2e87
-=======
->>>>>>> d1ad0c92b757ea944ee7d9422c6dbf98372df310
             )}
             <button
               type="button"
