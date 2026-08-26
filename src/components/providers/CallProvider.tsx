@@ -193,6 +193,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // socket listeners on every tick of the call-duration counter).
   const statusRef = useRef<CallStatus>("idle");
   const callDurationRef = useRef(0);
+  // `createPeerConnectionFor`'s onconnectionstatechange closure is created
+  // before `endCall` exists on the first render — a ref sidesteps the
+  // ordering problem without pulling `endCall` into that callback's deps
+  // (which would tear down and rebuild every open connection's handlers
+  // whenever `endCall` itself changed identity). Declared up here, before
+  // any hook captures it, so the ref itself is never seen as frozen by the
+  // time the sync effect below assigns to it.
+  const endCallRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     statusRef.current = status;
@@ -542,12 +550,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     cleanup();
   }, [emit, cleanup, logCallOutcome]);
 
-  // `createPeerConnectionFor`'s onconnectionstatechange closure is created
-  // before `endCall` exists on the first render — a ref sidesteps the
-  // ordering problem without pulling `endCall` into that callback's deps
-  // (which would tear down and rebuild every open connection's handlers
-  // whenever `endCall` itself changed identity).
-  const endCallRef = useRef<() => void>(() => {});
   useEffect(() => {
     endCallRef.current = endCall;
   }, [endCall]);

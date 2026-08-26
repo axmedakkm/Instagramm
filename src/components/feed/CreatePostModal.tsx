@@ -21,9 +21,10 @@ import { useUIStore } from "@/store/useUIStore";
 
 const MAX_IMAGES = 10;
 
-interface SelectedImage {
+interface SelectedMedia {
   file: File;
   previewUrl: string;
+  type: "image" | "video";
 }
 
 export function CreatePostModal() {
@@ -32,13 +33,15 @@ export function CreatePostModal() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [images, setImages] = useState<SelectedImage[]>([]);
+  const [media, setMedia] = useState<SelectedMedia[]>([]);
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
 
+  const hasVideo = media.some((item) => item.type === "video");
+
   const resetForm = () => {
-    images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-    setImages([]);
+    media.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    setMedia([]);
     setCaption("");
     setLocation("");
   };
@@ -52,25 +55,52 @@ export function CreatePostModal() {
 
   const handleFilesSelected = (fileList: FileList | null) => {
     if (!fileList) return;
-    const files = Array.from(fileList).filter((file) =>
-      file.type.startsWith("image/"),
-    );
-    const room = MAX_IMAGES - images.length;
+    const files = Array.from(fileList);
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const videoFiles = files.filter((file) => file.type.startsWith("video/"));
 
-    if (files.length > room) {
+    if (imageFiles.length === 0 && videoFiles.length === 0) {
+      toast.warning("Select photos or a video to share.");
+      return;
+    }
+
+    // A post is either a photo carousel or a single video, never both — same
+    // rule the backend applies when it derives `mediaType`.
+    if (videoFiles.length > 0) {
+      if (media.length > 0 || videoFiles.length > 1 || imageFiles.length > 0) {
+        toast.warning(
+          "A post can have one video, or up to 10 photos — not both.",
+        );
+      }
+      const [video] = videoFiles;
+      media.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setMedia([
+        { file: video, previewUrl: URL.createObjectURL(video), type: "video" },
+      ]);
+      return;
+    }
+
+    if (hasVideo) {
+      toast.warning("Remove the video first to add photos.");
+      return;
+    }
+
+    const room = MAX_IMAGES - media.length;
+    if (imageFiles.length > room) {
       toast.warning(`You can upload up to ${MAX_IMAGES} images per post.`);
     }
 
-    const accepted = files.slice(0, room).map((file) => ({
+    const accepted = imageFiles.slice(0, room).map((file) => ({
       file,
       previewUrl: URL.createObjectURL(file),
+      type: "image" as const,
     }));
 
-    setImages((prev) => [...prev, ...accepted]);
+    setMedia((prev) => [...prev, ...accepted]);
   };
 
-  const removeImage = (index: number) => {
-    setImages((prev) => {
+  const removeMedia = (index: number) => {
+    setMedia((prev) => {
       const next = [...prev];
       const [removed] = next.splice(index, 1);
       if (removed) URL.revokeObjectURL(removed.previewUrl);
@@ -81,7 +111,7 @@ export function CreatePostModal() {
   const mutation = useMutation({
     mutationFn: () =>
       postsApi.create({
-        images: images.map((image) => image.file),
+        media: media.map((item) => item.file),
         caption: caption.trim() || undefined,
         location: location.trim() || undefined,
       }),
@@ -108,13 +138,17 @@ export function CreatePostModal() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             multiple
             className="hidden"
-            onChange={(event) => handleFilesSelected(event.target.files)}
+            onChange={(event) => {
+              handleFilesSelected(event.target.files);
+              // Allow re-selecting the same file after it was removed.
+              event.target.value = "";
+            }}
           />
 
-          {images.length === 0 ? (
+          {media.length === 0 ? (
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -122,43 +156,60 @@ export function CreatePostModal() {
             >
               <ImagePlus className="size-10" />
               <span className="text-sm font-medium">
-                Click to select up to {MAX_IMAGES} photos
+                Click to select up to {MAX_IMAGES} photos or one video
               </span>
             </button>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2">
-                {images.map((image, index) => (
-                  <div
-                    key={image.previewUrl}
-                    className="relative aspect-square overflow-hidden rounded-md bg-muted"
-                  >
-                    <Image
-                      src={image.previewUrl}
-                      alt={`Selected photo ${index + 1}`}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  </div>
-                ))}
-                {images.length < MAX_IMAGES && (
+              {hasVideo ? (
+                <div className="relative aspect-square overflow-hidden rounded-md bg-black">
+                  <video
+                    src={media[0].previewUrl}
+                    controls
+                    className="size-full object-contain"
+                  />
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex aspect-square items-center justify-center rounded-md border-2 border-dashed border-border text-muted-foreground hover:border-foreground/40"
+                    onClick={() => removeMedia(0)}
+                    className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white"
                   >
-                    <ImagePlus className="size-6" />
+                    <X className="size-3.5" />
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {media.map((item, index) => (
+                    <div
+                      key={item.previewUrl}
+                      className="relative aspect-square overflow-hidden rounded-md bg-muted"
+                    >
+                      <Image
+                        src={item.previewUrl}
+                        alt={`Selected photo ${index + 1}`}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeMedia(index)}
+                        className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {media.length < MAX_IMAGES && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex aspect-square items-center justify-center rounded-md border-2 border-dashed border-border text-muted-foreground hover:border-foreground/40"
+                    >
+                      <ImagePlus className="size-6" />
+                    </button>
+                  )}
+                </div>
+              )}
 
               <Textarea
                 placeholder="Write a caption..."
@@ -183,7 +234,7 @@ export function CreatePostModal() {
             Cancel
           </Button>
           <Button
-            disabled={images.length === 0 || mutation.isPending}
+            disabled={media.length === 0 || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
             {mutation.isPending && <Loader2 className="size-4 animate-spin" />}

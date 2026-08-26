@@ -171,7 +171,9 @@ export const usersApi = {
 /** ------------------------------------------------------------------ */
 
 export interface CreatePostPayload {
-  images: File[];
+  /** Either up to 10 images (carousel) or a single video — never mixed,
+   * matching how `mediaType` is derived server-side. */
+  media: File[];
   caption?: string;
   location?: string;
 }
@@ -202,7 +204,7 @@ export const postsApi = {
       .post<Post>(
         "/posts",
         toFormData({
-          media: payload.images,
+          media: payload.media,
           caption: payload.caption,
           location: payload.location,
         }),
