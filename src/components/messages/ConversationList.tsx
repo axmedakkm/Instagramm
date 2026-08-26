@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { NewMessageModal } from "@/components/messages/NewMessageModal";
 import { NotesRail } from "@/components/messages/NotesRail";
 import { TimeAgo } from "@/components/shared/TimeAgo";
+import { UnreadDot } from "@/components/shared/UnreadDot";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   conversationTitle,
+  hasUnread,
   isGroupConversation,
   otherParticipants,
 } from "@/lib/conversation";
@@ -282,6 +284,10 @@ function ConversationRow({
   const others = otherParticipants(conversation, currentUserId);
   const isGroup = isGroupConversation(conversation);
   const [leadOther] = others;
+  const readAt = useConversationPrefsStore(
+    (state) => state.readAt[conversation.id],
+  );
+  const unread = hasUnread(conversation, readAt, currentUserId);
 
   return (
     <Link
@@ -307,7 +313,7 @@ function ConversationRow({
         <p
           className={cn(
             "truncate text-xs text-muted-foreground",
-            conversation.unreadCount > 0 && "font-semibold text-foreground",
+            unread && "font-semibold text-foreground",
           )}
         >
           {conversation.lastMessage?.text ?? "Say hello \u{1F44B}"}
@@ -320,9 +326,9 @@ function ConversationRow({
         </p>
       </div>
 
-      {conversation.unreadCount > 0 && (
-        <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-[linear-gradient(135deg,#ee2a7b,#6228d7)] shadow-[0_0_8px_rgba(238,42,123,0.6)]" />
-      )}
+      {/* Only while someone else's message is still unread — opening the chat
+          drops the watermark past it (see `ChatWindow`) and the dot goes. */}
+      {unread && <UnreadDot />}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

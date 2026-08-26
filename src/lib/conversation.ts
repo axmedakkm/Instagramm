@@ -23,6 +23,31 @@ export function isGroupConversation(
   return conversation.participants.length > 2;
 }
 
+/**
+ * Whether this chat should still show the unread dot — in the inbox row and,
+ * summed up, on the Messages nav icon.
+ *
+ * The server's `unreadCount` alone isn't enough: it can still read > 0 right
+ * after you've read the thread (receipts are per message and the list is
+ * polled), which leaves a dot on a chat with nothing new in it. So the last
+ * message has to be *someone else's* and newer than the local watermark from
+ * the last time you had the chat open (`readAt` in the prefs store). A new
+ * message arriving is newer than the watermark, so the dot comes straight
+ * back.
+ */
+export function hasUnread(
+  conversation: Pick<Conversation, "unreadCount" | "lastMessage">,
+  readAt: string | undefined,
+  currentUserId?: string,
+): boolean {
+  if (conversation.unreadCount <= 0) return false;
+  const last = conversation.lastMessage;
+  if (!last) return false;
+  if (last.sender.id === currentUserId) return false;
+  if (!readAt) return true;
+  return new Date(last.createdAt).getTime() > new Date(readAt).getTime();
+}
+
 /** My private nickname for this participant (see `Conversation.nicknames`),
  * falling back to their real username if I haven't set one. */
 export function displayName(

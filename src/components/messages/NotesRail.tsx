@@ -13,6 +13,14 @@ import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 
 /**
+ * Fixed-height slot every note bubble sits in, aligned to the bottom. Bubbles
+ * are one or two lines and may carry a music row, so without this the avatars
+ * under them would sit at different heights across the rail. Tall enough for
+ * the largest bubble: two clamped lines plus the music row.
+ */
+const NOTE_SLOT_CLASS = "flex h-[52px] w-full items-end justify-center";
+
+/**
  * The rail of notes above the inbox. Now backed by the real `/notes` endpoint,
  * so it shows your own note (first, as a composer button) followed by a note
  * from each person you follow. Your note reaches your followers the same way.
@@ -71,15 +79,20 @@ export function NotesRail() {
           className="flex w-full flex-col items-center gap-1"
         >
           {/* The bubble always renders — your note, or a muted "Note" prompt —
-              so the avatar never shifts up and down. */}
-          {myNote ? (
-            <NoteBubble note={myNote} />
-          ) : (
-            <span className="relative block w-full rounded-2xl bg-muted px-2 py-1.5 text-[10px] leading-tight text-muted-foreground">
-              <span className="line-clamp-2 block break-words">Note...</span>
-              <span className="absolute -bottom-[3px] left-1/2 size-2 -translate-x-1/2 rotate-45 rounded-[1px] bg-muted" />
-            </span>
-          )}
+              so the avatar never shifts up and down. The slot is a fixed
+              height with the bubble pinned to its bottom, so a one-line note
+              and a two-line-plus-music one leave the avatar on the same
+              line as everyone else's. */}
+          <span className={NOTE_SLOT_CLASS}>
+            {myNote ? (
+              <NoteBubble note={myNote} />
+            ) : (
+              <span className="relative block w-full rounded-2xl bg-muted px-2 py-1.5 text-[10px] leading-tight text-muted-foreground">
+                <span className="line-clamp-2 block break-words">Note...</span>
+                <span className="absolute -bottom-[3px] left-1/2 size-2 -translate-x-1/2 rotate-45 rounded-[1px] bg-muted" />
+              </span>
+            )}
+          </span>
 
           <span className="relative">
             <StoryRing
@@ -134,7 +147,9 @@ export function NotesRail() {
           href={`/${note.author.username}`}
           className="flex w-[72px] shrink-0 flex-col items-center gap-1"
         >
-          <NoteBubble note={note} />
+          <span className={NOTE_SLOT_CLASS}>
+            <NoteBubble note={note} />
+          </span>
           <UserAvatar user={note.author} size="lg" />
           <span className="w-full truncate text-center text-[11px] text-muted-foreground">
             {note.author.username}
