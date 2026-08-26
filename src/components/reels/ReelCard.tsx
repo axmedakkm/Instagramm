@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CommentSheet } from "@/components/feed/CommentSheet";
+import { MusicTrackAudio } from "@/components/feed/MusicTrackAudio";
 import { SharePostModal } from "@/components/feed/SharePostModal";
 import { QuickFollowButton } from "@/components/shared/QuickFollowButton";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -41,6 +42,11 @@ export function ReelCard({
 
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  // A music sticker attached to the reel: it becomes the sound source, so the
+  // video itself is muted and the mute toggle drives the track instead.
+  const hasMusic = !!post.music?.previewUrl;
 
   // Only the reel on screen plays. Without this every video in the list
   // autoplays at once, which burns CPU and stacks audio the moment you unmute.
@@ -51,7 +57,9 @@ export function ReelCard({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) video.play().catch(() => {});
+        const visible = !!entries[0]?.isIntersecting;
+        setIsVisible(visible);
+        if (visible) video.play().catch(() => {});
         else video.pause();
       },
       { threshold: 0.6 },
@@ -123,7 +131,7 @@ export function ReelCard({
               ref={videoRef}
               src={mediaUrl}
               loop
-              muted={isMuted}
+              muted={isMuted || hasMusic}
               playsInline
               className="size-full object-cover"
             />
@@ -134,6 +142,14 @@ export function ReelCard({
               fill
               sizes="(max-width: 640px) 100vw, 420px"
               className="object-cover"
+            />
+          )}
+
+          {hasMusic && post.music && (
+            <MusicTrackAudio
+              src={post.music.previewUrl!}
+              active={isVisible}
+              muted={isMuted}
             />
           )}
 
