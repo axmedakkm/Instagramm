@@ -22,13 +22,13 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { conversationsApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useUIStore } from "@/store/useUIStore";
 import type { Conversation, PaginatedResponse, User } from "@/types";
 
 export function ProfileHeader({ profile }: { profile: User }) {
@@ -36,7 +36,6 @@ export function ProfileHeader({ profile }: { profile: User }) {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const isOwner = currentUser?.id === profile.id;
-  const openCreatePost = useUIStore((state) => state.openCreatePost);
   const [openList, setOpenList] = useState<"followers" | "following" | null>(
     null,
   );
@@ -237,7 +236,7 @@ export function ProfileHeader({ profile }: { profile: User }) {
             <Button
               variant="secondary"
               className="h-10 flex-1"
-              onClick={openCreatePost}
+              onClick={() => router.push("/create")}
             >
               <ImagePlus className="size-4" />
               New post

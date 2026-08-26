@@ -20,7 +20,6 @@ import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useUIStore } from "@/store/useUIStore";
 
 /** A nav row. It carries either an unread dot or a count, never both. */
 type NavItem = {
@@ -34,7 +33,6 @@ type NavItem = {
 export function Sidebar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
-  const openCreatePost = useUIStore((state) => state.openCreatePost);
 
   // Collapsed by default; opens while the pointer is over it. `onFocus` /
   // `onBlur` are here so tabbing through the links opens it too — a
@@ -125,14 +123,13 @@ export function Sidebar() {
           );
         })}
 
-        <button
-          type="button"
-          onClick={openCreatePost}
+        <Link
+          href="/create"
           className="flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-all duration-200 ease-smooth hover:bg-accent active:scale-[0.98]"
         >
           <PlusSquare className="size-6 shrink-0" />
           <NavLabel show={isExpanded}>Create</NavLabel>
-        </button>
+        </Link>
 
         {user && (
           <Link
