@@ -9,14 +9,18 @@ import {
   Heart,
   MessageCircle,
   MoreHorizontal,
+  Music,
   Send,
   Trash2,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CommentSheet } from "@/components/feed/CommentSheet";
+import { MusicTrackAudio } from "@/components/feed/MusicTrackAudio";
 import { SharePostModal } from "@/components/feed/SharePostModal";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { TimeAgo } from "@/components/shared/TimeAgo";
@@ -52,6 +56,25 @@ export function PostCard({ post }: { post: Post }) {
   // Drives the big centre-of-photo heart burst on double-tap. Bumping the key
   // restarts the CSS animation even on rapid repeat taps.
   const [burstKey, setBurstKey] = useState(0);
+
+  // Music sticker playback: starts muted (so autoplay is allowed) and only
+  // plays while the media is on screen.
+  const hasMusic = !!post.music?.previewUrl;
+  const [isMusicMuted, setIsMusicMuted] = useState(true);
+  const [musicActive, setMusicActive] = useState(false);
+  const mediaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hasMusic) return;
+    const el = mediaRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => setMusicActive(!!entries[0]?.isIntersecting),
+      { threshold: 0.6 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMusic]);
 
   const isOwner = currentUser?.id === post.author.id;
   const isLongCaption = post.caption.length > CAPTION_CLAMP_LENGTH;
@@ -192,6 +215,7 @@ export function PostCard({ post }: { post: Post }) {
       </header>
 
       <div
+        ref={mediaRef}
         className="group/media relative aspect-square w-full select-none overflow-hidden bg-muted"
         onDoubleClick={handleDoubleClickLike}
       >
@@ -200,6 +224,9 @@ export function PostCard({ post }: { post: Post }) {
             src={post.mediaUrls[0]}
             controls
             loop
+            // With a music sticker, the track is the sound — mute the video so
+            // the two don't play over each other.
+            muted={hasMusic}
             className="size-full object-cover"
           />
         ) : (
@@ -270,6 +297,30 @@ export function PostCard({ post }: { post: Post }) {
             </div>
           </>
         )}
+
+        {/* Music sticker: the looping track plus a mute toggle in the bottom-
+            right corner of the media, like reels. */}
+        {hasMusic && post.music && (
+          <>
+            <MusicTrackAudio
+              src={post.music.previewUrl!}
+              active={musicActive}
+              muted={isMusicMuted}
+            />
+            <button
+              type="button"
+              onClick={() => setIsMusicMuted((m) => !m)}
+              aria-label={isMusicMuted ? "Unmute music" : "Mute music"}
+              className="glass-media absolute bottom-3 right-3 grid size-9 place-items-center rounded-full text-white transition-transform duration-200 ease-spring hover:scale-110 active:scale-90"
+            >
+              {isMusicMuted ? (
+                <VolumeX className="size-4" />
+              ) : (
+                <Volume2 className="size-4" />
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="flex items-center justify-between px-2.5 pt-1.5 sm:px-3">
@@ -328,6 +379,15 @@ export function PostCard({ post }: { post: Post }) {
           {post.likesCount.toLocaleString()}{" "}
           {post.likesCount === 1 ? "like" : "likes"}
         </p>
+
+        {post.music && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Music className="size-3.5 shrink-0" />
+            <span className="truncate">
+              {post.music.title} · {post.music.artist}
+            </span>
+          </p>
+        )}
 
         {post.caption && (
           <p className="text-sm leading-relaxed">

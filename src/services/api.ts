@@ -176,6 +176,8 @@ export interface CreatePostPayload {
   media: File[];
   caption?: string;
   location?: string;
+  /** Optional music sticker — sent as a JSON string field, like stories. */
+  music?: MusicTrack | null;
 }
 
 export const postsApi = {
@@ -207,6 +209,9 @@ export const postsApi = {
           media: payload.media,
           caption: payload.caption,
           location: payload.location,
+          ...(payload.music
+            ? { music: JSON.stringify(payload.music) }
+            : {}),
         }),
         { headers: { "Content-Type": "multipart/form-data" } },
       )

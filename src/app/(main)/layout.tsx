@@ -1,4 +1,3 @@
-import { CreatePostModal } from "@/components/feed/CreatePostModal";
 import { AuthGate } from "@/components/layout/AuthGate";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -25,7 +24,6 @@ export default function MainLayout({
             </div>
             <MobileNav />
           </div>
-          <CreatePostModal />
           <CallOverlay />
         </CallProvider>
       </SocketProvider>
