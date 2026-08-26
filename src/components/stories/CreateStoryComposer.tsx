@@ -8,6 +8,7 @@ import {
   Music,
   Pause,
   Play,
+  Trash2,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -27,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/useDebounce";
+import { cn } from "@/lib/utils";
 import { storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -38,6 +40,13 @@ const CAPTION_MAX_LENGTH = 200;
 const POSITION_BOUNDS = { min: 8, max: 92 };
 /** A pointer move under this many pixels counts as a tap, not a drag. */
 const DRAG_THRESHOLD_PX = 6;
+
+/** Shared by every draggable sticker (caption, mention, …): reports whether
+ * it's being dragged right now, and whether it's currently hovering the
+ * trash bin — drop it there instead of tapping "done" to delete it. */
+interface DragReporter {
+  onDragChange: (dragging: boolean, overTrash: boolean) => void;
+}
 
 /**
  * Full-page story composer — same frame the viewer uses (see `StoryViewer`),
@@ -51,6 +60,7 @@ export function CreateStoryComposer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
+  const trashRef = useRef<HTMLDivElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -66,6 +76,10 @@ export function CreateStoryComposer() {
   const [mentionSheetOpen, setMentionSheetOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
   const debouncedMentionQuery = useDebounce(mentionQuery.trim(), 300);
+  // Non-null while a sticker (caption or mention) is being dragged — shows
+  // the trash bin at the bottom; `overTrash` highlights it once the sticker
+  // is hovering over it, ready to be dropped and deleted.
+  const [drag, setDrag] = useState<{ overTrash: boolean } | null>(null);
 
   const discard = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -243,28 +257,53 @@ export function CreateStoryComposer() {
         </div>
 
         {/* Caption preview — drag to reposition, tap (without dragging) to
-            edit its text again. */}
+            edit its text again, or drag onto the trash bin to delete it. */}
         {caption && !isEditingCaption && (
           <DraggableCaption
             frameRef={frameRef}
+            trashRef={trashRef}
             text={caption}
             position={captionPosition}
             onPositionChange={setCaptionPosition}
             onTap={openCaptionEditor}
+            onDelete={() => setCaption("")}
+            onDragChange={(dragging, overTrash) =>
+              setDrag(dragging ? { overTrash } : null)
+            }
           />
         )}
 
         {/* Mention chip — drag to reposition, tap (without dragging) to pick
-            someone else instead. */}
+            someone else instead, or drag onto the trash bin to remove it. */}
         {mention && (
           <DraggableMention
             frameRef={frameRef}
+            trashRef={trashRef}
             username={mention.username}
             position={mentionPosition}
             onPositionChange={setMentionPosition}
             onTap={() => setMentionSheetOpen(true)}
             onRemove={() => setMention(null)}
+            onDragChange={(dragging, overTrash) =>
+              setDrag(dragging ? { overTrash } : null)
+            }
           />
+        )}
+
+        {/* Trash bin — only shown while a sticker is actively being
+            dragged, same as the real thing. */}
+        {drag && (
+          <div
+            ref={trashRef}
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-8 z-20 mx-auto flex size-16 items-center justify-center rounded-full backdrop-blur transition-all duration-150 ease-spring",
+              drag.overTrash
+                ? "scale-110 bg-destructive"
+                : "scale-100 bg-black/50",
+            )}
+          >
+            <Trash2 className="size-6 text-white" />
+          </div>
         )}
 
         {/* Music pill — the play button previews the 30s clip right here so
@@ -434,19 +473,25 @@ export function CreateStoryComposer() {
  */
 function DraggableCaption({
   frameRef,
+  trashRef,
   text,
   position,
   onPositionChange,
   onTap,
+  onDelete,
+  onDragChange,
 }: {
   frameRef: RefObject<HTMLDivElement | null>;
+  trashRef: RefObject<HTMLDivElement | null>;
   text: string;
   position: { x: number; y: number };
   onPositionChange: (position: { x: number; y: number }) => void;
   onTap: () => void;
-}) {
+  onDelete: () => void;
+} & DragReporter) {
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
+  const overTrashRef = useRef(false);
   const startRef = useRef({ x: 0, y: 0 });
 
   const clamp = (value: number) =>
@@ -461,11 +506,24 @@ function DraggableCaption({
     });
   };
 
+  const isOverTrash = (clientX: number, clientY: number) => {
+    const rect = trashRef.current?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    );
+  };
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     draggingRef.current = true;
     movedRef.current = false;
+    overTrashRef.current = false;
     startRef.current = { x: event.clientX, y: event.clientY };
+    onDragChange(true, false);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -474,11 +532,22 @@ function DraggableCaption({
     const dy = event.clientY - startRef.current.y;
     if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) movedRef.current = true;
     updateFromPointer(event.clientX, event.clientY);
+    const overTrash = isOverTrash(event.clientX, event.clientY);
+    if (overTrash !== overTrashRef.current) {
+      overTrashRef.current = overTrash;
+      onDragChange(true, overTrash);
+    }
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
     draggingRef.current = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
+    const droppedOnTrash = overTrashRef.current;
+    onDragChange(false, false);
+    if (droppedOnTrash) {
+      onDelete();
+      return;
+    }
     if (!movedRef.current) onTap();
   };
 
@@ -504,21 +573,25 @@ function DraggableCaption({
  */
 function DraggableMention({
   frameRef,
+  trashRef,
   username,
   position,
   onPositionChange,
   onTap,
   onRemove,
+  onDragChange,
 }: {
   frameRef: RefObject<HTMLDivElement | null>;
+  trashRef: RefObject<HTMLDivElement | null>;
   username: string;
   position: { x: number; y: number };
   onPositionChange: (position: { x: number; y: number }) => void;
   onTap: () => void;
   onRemove: () => void;
-}) {
+} & DragReporter) {
   const draggingRef = useRef(false);
   const movedRef = useRef(false);
+  const overTrashRef = useRef(false);
   const startRef = useRef({ x: 0, y: 0 });
 
   const clamp = (value: number) =>
@@ -533,11 +606,24 @@ function DraggableMention({
     });
   };
 
+  const isOverTrash = (clientX: number, clientY: number) => {
+    const rect = trashRef.current?.getBoundingClientRect();
+    if (!rect) return false;
+    return (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    );
+  };
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
     draggingRef.current = true;
     movedRef.current = false;
+    overTrashRef.current = false;
     startRef.current = { x: event.clientX, y: event.clientY };
+    onDragChange(true, false);
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -546,11 +632,22 @@ function DraggableMention({
     const dy = event.clientY - startRef.current.y;
     if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) movedRef.current = true;
     updateFromPointer(event.clientX, event.clientY);
+    const overTrash = isOverTrash(event.clientX, event.clientY);
+    if (overTrash !== overTrashRef.current) {
+      overTrashRef.current = overTrash;
+      onDragChange(true, overTrash);
+    }
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     draggingRef.current = false;
     event.currentTarget.releasePointerCapture(event.pointerId);
+    const droppedOnTrash = overTrashRef.current;
+    onDragChange(false, false);
+    if (droppedOnTrash) {
+      onRemove();
+      return;
+    }
     if (!movedRef.current) onTap();
   };
 
