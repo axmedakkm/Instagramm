@@ -1,7 +1,8 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AtSign,
   ImagePlus,
   Loader2,
   Music,
@@ -15,6 +16,7 @@ import { useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { toast } from "sonner";
 import { MusicPicker } from "@/components/shared/MusicPicker";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,10 +24,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { storiesApi } from "@/services/api";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useDebounce } from "@/hooks/useDebounce";
+import { storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
-import type { MusicTrack } from "@/types";
+import type { MusicTrack, UserSummary } from "@/types";
 
 /** Caption can't run away past what's readable on a phone-sized frame. */
 const CAPTION_MAX_LENGTH = 200;
@@ -56,6 +61,11 @@ export function CreateStoryComposer() {
   const [captionPosition, setCaptionPosition] = useState({ x: 50, y: 50 });
   const [isEditingCaption, setIsEditingCaption] = useState(false);
   const [musicSheetOpen, setMusicSheetOpen] = useState(false);
+  const [mention, setMention] = useState<UserSummary | null>(null);
+  const [mentionPosition, setMentionPosition] = useState({ x: 50, y: 35 });
+  const [mentionSheetOpen, setMentionSheetOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const debouncedMentionQuery = useDebounce(mentionQuery.trim(), 300);
 
   const discard = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -82,12 +92,30 @@ export function CreateStoryComposer() {
     else audio.pause();
   };
 
+  // Search results for the mention picker — empty until the user types.
+  const { data: mentionResults, isFetching: mentionSearching } = useQuery({
+    queryKey: queryKeys.users.search(debouncedMentionQuery),
+    queryFn: () => usersApi.search(debouncedMentionQuery),
+    enabled: mentionSheetOpen && debouncedMentionQuery.length > 0,
+  });
+  const mentionCandidates = (mentionResults ?? []).filter(
+    (user) => user.id !== currentUser?.id,
+  );
+
+  const selectMention = (user: UserSummary) => {
+    setMention(user);
+    setMentionSheetOpen(false);
+    setMentionQuery("");
+  };
+
   const mutation = useMutation({
     mutationFn: () =>
       storiesApi.create(file as File, {
         music,
         caption: caption.trim(),
         captionPosition,
+        mention: mention ? { userId: mention.id } : null,
+        mentionPosition,
       }),
     onSuccess: () => {
       toast.success("Your story was shared!");
@@ -203,6 +231,14 @@ export function CreateStoryComposer() {
             >
               <Music className="size-5" />
             </button>
+            <button
+              type="button"
+              onClick={() => setMentionSheetOpen(true)}
+              aria-label={mention ? "Change mention" : "Mention someone"}
+              className="grid size-9 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
+            >
+              <AtSign className="size-5" />
+            </button>
           </div>
         </div>
 
@@ -215,6 +251,19 @@ export function CreateStoryComposer() {
             position={captionPosition}
             onPositionChange={setCaptionPosition}
             onTap={openCaptionEditor}
+          />
+        )}
+
+        {/* Mention chip — drag to reposition, tap (without dragging) to pick
+            someone else instead. */}
+        {mention && (
+          <DraggableMention
+            frameRef={frameRef}
+            username={mention.username}
+            position={mentionPosition}
+            onPositionChange={setMentionPosition}
+            onTap={() => setMentionSheetOpen(true)}
+            onRemove={() => setMention(null)}
           />
         )}
 
@@ -317,6 +366,63 @@ export function CreateStoryComposer() {
           <MusicPicker value={music} onChange={setMusic} />
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={mentionSheetOpen}
+        onOpenChange={(open) => {
+          setMentionSheetOpen(open);
+          if (!open) setMentionQuery("");
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Mention someone</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={mentionQuery}
+            onChange={(event) => setMentionQuery(event.target.value)}
+            placeholder="Search people"
+          />
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {mentionSearching &&
+              Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3 px-1 py-2">
+                  <Skeleton className="size-9 rounded-full" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+              ))}
+
+            {!mentionSearching &&
+              debouncedMentionQuery.length > 0 &&
+              mentionCandidates.length === 0 && (
+                <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                  No people found for &ldquo;{debouncedMentionQuery}&rdquo;.
+                </p>
+              )}
+
+            {!mentionSearching &&
+              mentionCandidates.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => selectMention(person)}
+                  className="flex w-full items-center gap-3 rounded-md px-1 py-2 text-left transition-colors hover:bg-accent"
+                >
+                  <UserAvatar user={person} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">
+                      {person.username}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {person.fullName}
+                    </p>
+                  </div>
+                </button>
+              ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -387,5 +493,89 @@ function DraggableCaption({
     >
       {text}
     </button>
+  );
+}
+
+/**
+ * The "@mention" chip, positioned and dragged the same way `DraggableCaption`
+ * is. A `<div>` rather than a `<button>` (like the caption) since it needs a
+ * nested remove button — a `<button>` can't contain another interactive
+ * `<button>`.
+ */
+function DraggableMention({
+  frameRef,
+  username,
+  position,
+  onPositionChange,
+  onTap,
+  onRemove,
+}: {
+  frameRef: RefObject<HTMLDivElement | null>;
+  username: string;
+  position: { x: number; y: number };
+  onPositionChange: (position: { x: number; y: number }) => void;
+  onTap: () => void;
+  onRemove: () => void;
+}) {
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const startRef = useRef({ x: 0, y: 0 });
+
+  const clamp = (value: number) =>
+    Math.min(POSITION_BOUNDS.max, Math.max(POSITION_BOUNDS.min, value));
+
+  const updateFromPointer = (clientX: number, clientY: number) => {
+    const rect = frameRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    onPositionChange({
+      x: clamp(((clientX - rect.left) / rect.width) * 100),
+      y: clamp(((clientY - rect.top) / rect.height) * 100),
+    });
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingRef.current = true;
+    movedRef.current = false;
+    startRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current) return;
+    const dx = event.clientX - startRef.current.x;
+    const dy = event.clientY - startRef.current.y;
+    if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) movedRef.current = true;
+    updateFromPointer(event.clientX, event.clientY);
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    draggingRef.current = false;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!movedRef.current) onTap();
+  };
+
+  return (
+    <div
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      style={{ left: `${position.x}%`, top: `${position.y}%` }}
+      className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none select-none items-center gap-1 rounded-full bg-black/40 py-1 pl-3 pr-1 text-sm font-semibold text-white backdrop-blur active:cursor-grabbing"
+    >
+      <AtSign className="size-3.5 shrink-0" />
+      <span className="max-w-[160px] truncate">{username}</span>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+        aria-label="Remove mention"
+        className="grid size-5 shrink-0 place-items-center rounded-full bg-white/10 hover:bg-white/20"
+      >
+        <X className="size-3" />
+      </button>
+    </div>
   );
 }

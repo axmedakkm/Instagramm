@@ -126,6 +126,13 @@ export interface MusicTrack {
   durationMs?: number | null;
 }
 
+/** The "@mention" sticker on a story — tags one other user, positioned like
+ * the caption. `position` is null when it wasn't dragged (center it). */
+export interface StoryMention {
+  user: UserSummary | null;
+  position: { x: number; y: number } | null;
+}
+
 export interface Story {
   id: string;
   author: UserSummary;
@@ -137,6 +144,8 @@ export interface Story {
   /** Where the caption was dragged to in the composer, as a percentage of
    * the frame (0-100, top-left origin). Null centers it. */
   captionPosition: { x: number; y: number } | null;
+  /** Someone tagged via the "@mention" sticker, or null. */
+  mention: StoryMention | null;
   viewsCount: number;
   isViewedByMe: boolean;
   likesCount: number;
@@ -161,6 +170,7 @@ export interface ArchivedStory {
   mediaUrl: string;
   mediaType: "image" | "video";
   caption: string;
+  mention: StoryMention | null;
   likesCount: number;
   isExpired: boolean;
   createdAt: string;
@@ -203,6 +213,10 @@ export interface Message {
   text: string;
   mediaUrl: string | null;
   sharedPostId: string | null;
+  /** Set only on the auto-generated "mentioned you in their story" message a
+   * mention sticker creates (see `storiesApi.create`) — the story it links
+   * to, so the recipient can re-share it. Null once the story's expired. */
+  mentionedStoryId: string | null;
   isRead: boolean;
   createdAt: string;
 }

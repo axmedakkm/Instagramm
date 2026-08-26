@@ -1,7 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Ban, Image as ImageIcon, Phone, Send, Video } from "lucide-react";
+import {
+  ArrowLeft,
+  AtSign,
+  Ban,
+  Image as ImageIcon,
+  Loader2,
+  Phone,
+  Plus,
+  Send,
+  Video,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,9 +33,9 @@ import {
   isGroupConversation,
   otherParticipants,
 } from "@/lib/conversation";
-import { getMessageMediaKind } from "@/lib/media";
+import { getMessageMediaKind, isVideoUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
-import { conversationsApi, messagesApi, usersApi } from "@/services/api";
+import { conversationsApi, messagesApi, storiesApi, usersApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useConversationPrefsStore } from "@/store/useConversationPrefsStore";
@@ -109,6 +119,22 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.blocked });
     },
     onError: () => toast.error("Couldn't unblock that account."),
+  });
+
+  // "Add to your story" on a "mentioned you in their story" message.
+  const reshareStoryMutation = useMutation({
+    mutationFn: (storyId: string) => storiesApi.reshare(storyId),
+    onSuccess: () => {
+      toast.success("Added to your story!");
+      queryClient.invalidateQueries({ queryKey: queryKeys.stories.feed });
+      if (currentUser) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.stories.byUser(currentUser.id),
+        });
+      }
+    },
+    onError: () =>
+      toast.error("Couldn't add that to your story — it may have expired."),
   });
 
   useEffect(() => {
@@ -278,38 +304,104 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
                     {displayName(message.sender, conversation?.nicknames)}
                   </p>
                 )}
-                {message.sharedPostId && (
-                  <Link
-                    href={`/p/${message.sharedPostId}`}
-                    className={cn(
-                      "mb-1 flex items-center gap-1.5 text-xs underline underline-offset-2",
-                      isMine ? "text-primary-foreground/90" : "text-foreground",
-                    )}
-                  >
-                    <ImageIcon className="size-3.5" />
-                    Shared a post
-                  </Link>
-                )}
-                {message.mediaUrl &&
-                  (getMessageMediaKind(message.mediaUrl) === "image" ? (
-                    <button
-                      type="button"
-                      onClick={() => setLightboxUrl(message.mediaUrl)}
-                      aria-label="View photo"
-                      className="relative block h-52 w-52 max-w-full overflow-hidden rounded-lg"
+                {message.mentionedStoryId ? (
+                  <div>
+                    <p
+                      className={cn(
+                        "mb-1.5 flex items-center gap-1.5 text-xs",
+                        isMine
+                          ? "text-primary-foreground/90"
+                          : "text-muted-foreground",
+                      )}
                     >
-                      <Image
-                        src={message.mediaUrl}
-                        alt="Photo"
-                        fill
-                        sizes="208px"
-                        className="object-cover"
-                      />
-                    </button>
-                  ) : (
-                    <VoiceMessage src={message.mediaUrl} />
-                  ))}
-                {message.text && <p>{message.text}</p>}
+                      <AtSign className="size-3.5 shrink-0" />
+                      {isMine
+                        ? "You mentioned them in your story"
+                        : "Mentioned you in their story"}
+                    </p>
+                    {message.mediaUrl &&
+                      (isVideoUrl(message.mediaUrl) ? (
+                        <video
+                          src={message.mediaUrl}
+                          controls
+                          className="h-52 w-52 max-w-full rounded-lg object-cover"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxUrl(message.mediaUrl)}
+                          aria-label="View story"
+                          className="relative block h-52 w-52 max-w-full overflow-hidden rounded-lg"
+                        >
+                          <Image
+                            src={message.mediaUrl}
+                            alt="Story"
+                            fill
+                            sizes="208px"
+                            className="object-cover"
+                          />
+                        </button>
+                      ))}
+                    {!isMine && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="mt-2 gap-1.5"
+                        disabled={reshareStoryMutation.isPending}
+                        onClick={() =>
+                          reshareStoryMutation.mutate(
+                            message.mentionedStoryId as string,
+                          )
+                        }
+                      >
+                        {reshareStoryMutation.isPending ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Plus className="size-3.5" />
+                        )}
+                        Add to your story
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {message.sharedPostId && (
+                      <Link
+                        href={`/p/${message.sharedPostId}`}
+                        className={cn(
+                          "mb-1 flex items-center gap-1.5 text-xs underline underline-offset-2",
+                          isMine
+                            ? "text-primary-foreground/90"
+                            : "text-foreground",
+                        )}
+                      >
+                        <ImageIcon className="size-3.5" />
+                        Shared a post
+                      </Link>
+                    )}
+                    {message.mediaUrl &&
+                      (getMessageMediaKind(message.mediaUrl) === "image" ? (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxUrl(message.mediaUrl)}
+                          aria-label="View photo"
+                          className="relative block h-52 w-52 max-w-full overflow-hidden rounded-lg"
+                        >
+                          <Image
+                            src={message.mediaUrl}
+                            alt="Photo"
+                            fill
+                            sizes="208px"
+                            className="object-cover"
+                          />
+                        </button>
+                      ) : (
+                        <VoiceMessage src={message.mediaUrl} />
+                      ))}
+                    {message.text && <p>{message.text}</p>}
+                  </>
+                )}
                 <TimeAgo
                   date={message.createdAt}
                   className={cn(

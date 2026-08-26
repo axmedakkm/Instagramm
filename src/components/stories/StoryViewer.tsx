@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AtSign,
   Eye,
   Heart,
   MoreHorizontal,
@@ -342,6 +343,27 @@ export function StoryViewer({ initialUsername }: { initialUsername: string }) {
             className="object-contain"
             preload
           />
+        )}
+
+        {currentStory.mention?.user && (
+          <Link
+            href={`/${currentStory.mention.user.username}`}
+            style={
+              currentStory.mention.position
+                ? {
+                    left: `${currentStory.mention.position.x}%`,
+                    top: `${currentStory.mention.position.y}%`,
+                  }
+                : { left: "50%", top: "35%" }
+            }
+            className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-black/40 py-1 pl-3 pr-3.5 text-sm font-semibold text-white backdrop-blur"
+            // Tapping the mention shouldn't also register as a "previous/next
+            // story" tap on the invisible nav buttons underneath it.
+            onClick={(event) => event.stopPropagation()}
+          >
+            <AtSign className="size-3.5 shrink-0" />
+            {currentStory.mention.user.username}
+          </Link>
         )}
 
         {currentStory.caption && (

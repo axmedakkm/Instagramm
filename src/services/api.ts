@@ -280,10 +280,11 @@ export const storiesApi = {
     api.get<Story[]>(`/users/${userId}/stories`).then((res) => res.data),
 
   /**
-   * Upload a story, optionally with a caption (+ where it was dragged to)
-   * and/or a music sticker. The backend expects the track as a JSON
-   * *string* field alongside the multipart file — it can't carry a nested
-   * object through form-data; the caption position is two separate number
+   * Upload a story, optionally with a caption (+ where it was dragged to),
+   * a music sticker, and/or an "@mention" sticker tagging one other user
+   * (+ where *that* was dragged to). The backend expects the track/mention
+   * as JSON *string* fields alongside the multipart file — it can't carry a
+   * nested object through form-data; each position is two separate number
    * fields for the same reason.
    */
   create: (
@@ -292,6 +293,8 @@ export const storiesApi = {
       music?: MusicTrack | null;
       caption?: string;
       captionPosition?: { x: number; y: number } | null;
+      mention?: { userId: string } | null;
+      mentionPosition?: { x: number; y: number } | null;
     },
   ) =>
     api
@@ -309,6 +312,19 @@ export const storiesApi = {
                 captionY: options.captionPosition.y,
               }
             : {}),
+          ...(options?.mention
+            ? {
+                mention: JSON.stringify({
+                  userId: options.mention.userId,
+                  ...(options?.mentionPosition
+                    ? {
+                        x: options.mentionPosition.x,
+                        y: options.mentionPosition.y,
+                      }
+                    : {}),
+                }),
+              }
+            : {}),
         }),
         { headers: { "Content-Type": "multipart/form-data" } },
       )
@@ -319,6 +335,15 @@ export const storiesApi = {
 
   markViewed: (storyId: string) =>
     api.post<void>(`/stories/${storyId}/view`).then((res) => res.data),
+
+  /**
+   * Re-post someone else's still-active story as your own — e.g. the "Add
+   * to your story" action on a "mentioned you in their story" chat message.
+   * 404s if the source story has since expired or is otherwise no longer
+   * visible to you.
+   */
+  reshare: (storyId: string) =>
+    api.post<Story>(`/stories/${storyId}/reshare`).then((res) => res.data),
 
   like: (storyId: string) =>
     api.post<void>(`/stories/${storyId}/like`).then((res) => res.data),
