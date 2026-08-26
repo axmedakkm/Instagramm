@@ -2,12 +2,14 @@
 
 import { ChevronLeft, Moon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "@/i18n/useTranslation";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useThemeStore } from "@/store/useThemeStore";
 
 export default function ThemePage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
   const isDark = theme === "dark";
@@ -18,13 +20,13 @@ export default function ThemePage() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Go back"
+          aria-label={t("common.back")}
           className="size-8"
           onClick={() => router.back()}
         >
           <ChevronLeft className="size-5" />
         </Button>
-        <h1 className="text-xl font-semibold">Theme</h1>
+        <h1 className="text-xl font-semibold">{t("theme.title")}</h1>
       </header>
 
       <div className="p-2">
@@ -34,9 +36,9 @@ export default function ThemePage() {
         >
           <Moon className="size-5" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">Dark mode</p>
+            <p className="text-sm font-medium">{t("theme.darkMode")}</p>
             <p className="text-xs text-muted-foreground">
-              Switch the app between the light and dark colour scheme.
+              {t("theme.darkModeDesc")}
             </p>
           </div>
           <Switch

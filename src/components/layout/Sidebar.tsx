@@ -18,6 +18,7 @@ import { UnreadDot } from "@/components/shared/UnreadDot";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
+import { useTranslation } from "@/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -32,6 +33,7 @@ type NavItem = {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
 
   // Collapsed by default; opens while the pointer is over it. `onFocus` /
@@ -47,18 +49,18 @@ export function Sidebar() {
   // anything?", which is all you need before opening the inbox; a count
   // answers "how many?", which is worth knowing for notifications.
   const navItems: NavItem[] = [
-    { href: "/feed", label: "Home", icon: Home },
-    { href: "/explore", label: "Search", icon: Search },
-    { href: "/reels", label: "Reels", icon: Film },
+    { href: "/feed", label: t("nav.home"), icon: Home },
+    { href: "/explore", label: t("nav.search"), icon: Search },
+    { href: "/reels", label: t("nav.reels"), icon: Film },
     {
       href: "/messages",
-      label: "Messages",
+      label: t("nav.messages"),
       icon: MessageCircle,
       hasDot: unreadMessages > 0,
     },
     {
       href: "/notifications",
-      label: "Notifications",
+      label: t("nav.notifications"),
       icon: Heart,
       badge: unreadNotifications,
     },
@@ -93,7 +95,7 @@ export function Sidebar() {
           const isActive = pathname === item.href;
           return (
             <Link
-              key={item.label}
+              key={item.href}
               href={item.href}
               className={cn(
                 "group relative flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-all duration-200 ease-smooth hover:bg-accent active:scale-[0.98]",
@@ -128,7 +130,7 @@ export function Sidebar() {
           className="flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-all duration-200 ease-smooth hover:bg-accent active:scale-[0.98]"
         >
           <PlusSquare className="size-6 shrink-0" />
-          <NavLabel show={isExpanded}>Create</NavLabel>
+          <NavLabel show={isExpanded}>{t("nav.create")}</NavLabel>
         </Link>
 
         {user && (
@@ -140,7 +142,7 @@ export function Sidebar() {
             )}
           >
             <UserAvatar user={user} size="xs" />
-            <NavLabel show={isExpanded}>Profile</NavLabel>
+            <NavLabel show={isExpanded}>{t("nav.profile")}</NavLabel>
           </Link>
         )}
 
@@ -152,7 +154,7 @@ export function Sidebar() {
                 className="mt-auto flex items-center gap-4 rounded-lg px-3 py-3 text-base transition-all duration-200 ease-smooth hover:bg-accent active:scale-[0.98]"
               >
                 <Menu className="size-6 shrink-0" />
-                <NavLabel show={isExpanded}>More</NavLabel>
+                <NavLabel show={isExpanded}>{t("nav.more")}</NavLabel>
               </button>
             </DropdownMenuTrigger>
             <AccountMenuContent />

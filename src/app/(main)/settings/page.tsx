@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   EyeOff,
+  Languages,
   Lock,
   LogOut,
   Moon,
@@ -15,6 +16,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useTranslation } from "@/i18n/useTranslation";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const [editOpen, setEditOpen] = useState(false);
   const logout = useAuthStore((state) => state.logout);
@@ -35,13 +38,13 @@ export default function SettingsPage() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Go back"
+          aria-label={t("common.back")}
           className="size-8"
           onClick={() => router.back()}
         >
           <ChevronLeft className="size-5" />
         </Button>
-        <h1 className="text-xl font-semibold">Settings</h1>
+        <h1 className="text-xl font-semibold">{t("settings.title")}</h1>
       </header>
 
       {user && (
@@ -68,7 +71,7 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <UserIcon className="size-5" />
-          Edit profile
+          {t("settings.editProfile")}
         </button>
 
         <button
@@ -77,7 +80,7 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <Bookmark className="size-5" />
-          Saved
+          {t("settings.saved")}
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
@@ -87,7 +90,17 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <Moon className="size-5" />
-          Theme
+          {t("settings.theme")}
+          <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/settings/language")}
+          className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
+        >
+          <Languages className="size-5" />
+          {t("settings.language")}
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
@@ -97,7 +110,7 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <Lock className="size-5" />
-          Account privacy
+          {t("settings.privacy")}
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
@@ -107,7 +120,7 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <Ban className="size-5" />
-          Blocked accounts
+          {t("settings.blocked")}
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
@@ -117,7 +130,7 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <Archive className="size-5" />
-          Story archive
+          {t("settings.archive")}
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
@@ -127,7 +140,7 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors hover:bg-accent"
         >
           <EyeOff className="size-5" />
-          Hide story from
+          {t("settings.hideStory")}
           <ChevronRight className="ml-auto size-4 text-muted-foreground" />
         </button>
 
@@ -147,7 +160,7 @@ export default function SettingsPage() {
           className="flex items-center gap-3 rounded-md px-3 py-3 text-sm text-destructive transition-colors hover:bg-destructive/10"
         >
           <LogOut className="size-5" />
-          Log out
+          {t("settings.logout")}
         </button>
       </nav>
 

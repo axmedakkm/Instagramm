@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useTranslation } from "@/i18n/useTranslation";
 import { BrandMark } from "@/components/shared/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const setAuth = useAuthStore((state) => state.setAuth);
 
   const {
@@ -41,13 +43,13 @@ export default function LoginPage() {
     try {
       const response = await authApi.login(values);
       setAuth(response);
-      toast.success(`Welcome back, ${response.user.username}!`);
+      toast.success(t("auth.loginSuccess"));
       router.replace("/feed");
     } catch (error) {
       const message =
         (error instanceof AxiosError &&
           (error.response?.data as ApiError | undefined)?.message) ||
-        "Invalid credentials. Please try again.";
+        t("auth.invalidCreds");
       toast.error(message);
     }
   };
@@ -61,7 +63,7 @@ export default function LoginPage() {
             Instagramm
           </h1>
           <p className="text-center text-sm text-muted-foreground">
-            Welcome back — sign in to pick up where you left off.
+            {t("auth.loginTagline")}
           </p>
         </div>
 
@@ -72,11 +74,11 @@ export default function LoginPage() {
         >
           <div className="space-y-1.5">
             <Label htmlFor="login" className="sr-only">
-              Email or username
+              {t("auth.emailOrUsername")}
             </Label>
             <Input
               id="login"
-              placeholder="Email or username"
+              placeholder={t("auth.emailOrUsername")}
               autoComplete="username"
               aria-invalid={!!errors.login}
               {...register("login")}
@@ -90,12 +92,12 @@ export default function LoginPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="password" className="sr-only">
-              Password
+              {t("auth.password")}
             </Label>
             <Input
               id="password"
               type="password"
-              placeholder="Password"
+              placeholder={t("auth.password")}
               autoComplete="current-password"
               aria-invalid={!!errors.password}
               {...register("password")}
@@ -115,15 +117,15 @@ export default function LoginPage() {
             disabled={isSubmitting}
           >
             {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-            Log in
+            {t("auth.login")}
           </Button>
         </form>
       </div>
 
       <div className="enter-up glass rounded-2xl border border-border/60 px-10 py-5 text-center text-sm shadow-lifted [animation-delay:200ms]">
-        Don&apos;t have an account?{" "}
+        {t("auth.noAccount")}{" "}
         <Link href="/register" className="font-semibold text-primary">
-          Sign up
+          {t("auth.signup")}
         </Link>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useTranslation } from "@/i18n/useTranslation";
 import { BrandMark } from "@/components/shared/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const setAuth = useAuthStore((state) => state.setAuth);
 
   const {
@@ -49,13 +51,13 @@ export default function RegisterPage() {
     try {
       const response = await authApi.register(values);
       setAuth(response);
-      toast.success("Account created! Welcome to Instagramm.");
+      toast.success(t("auth.registerSuccess"));
       router.replace("/feed");
     } catch (error) {
       const message =
         (error instanceof AxiosError &&
           (error.response?.data as ApiError | undefined)?.message) ||
-        "Couldn't create your account. Please try again.";
+        t("auth.registerError");
       toast.error(message);
     }
   };
@@ -69,7 +71,7 @@ export default function RegisterPage() {
             Instagramm
           </h1>
           <p className="text-sm text-muted-foreground">
-            Sign up to see photos and videos from your friends.
+            {t("auth.signupTagline")}
           </p>
         </div>
 
@@ -80,11 +82,11 @@ export default function RegisterPage() {
         >
           <div className="space-y-1.5">
             <Label htmlFor="fullName" className="sr-only">
-              Full name
+              {t("auth.fullName")}
             </Label>
             <Input
               id="fullName"
-              placeholder="Full name"
+              placeholder={t("auth.fullName")}
               autoComplete="name"
               aria-invalid={!!errors.fullName}
               {...register("fullName")}
@@ -98,11 +100,11 @@ export default function RegisterPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="username" className="sr-only">
-              Username
+              {t("auth.username")}
             </Label>
             <Input
               id="username"
-              placeholder="Username"
+              placeholder={t("auth.username")}
               autoComplete="username"
               aria-invalid={!!errors.username}
               {...register("username")}
@@ -116,12 +118,12 @@ export default function RegisterPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="email" className="sr-only">
-              Email
+              {t("auth.email")}
             </Label>
             <Input
               id="email"
               type="email"
-              placeholder="Email"
+              placeholder={t("auth.email")}
               autoComplete="email"
               aria-invalid={!!errors.email}
               {...register("email")}
@@ -133,12 +135,12 @@ export default function RegisterPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="password" className="sr-only">
-              Password
+              {t("auth.password")}
             </Label>
             <Input
               id="password"
               type="password"
-              placeholder="Password"
+              placeholder={t("auth.password")}
               autoComplete="new-password"
               aria-invalid={!!errors.password}
               {...register("password")}
@@ -158,15 +160,15 @@ export default function RegisterPage() {
             disabled={isSubmitting}
           >
             {isSubmitting && <Loader2 className="size-4 animate-spin" />}
-            Sign up
+            {t("auth.signup")}
           </Button>
         </form>
       </div>
 
       <div className="enter-up glass rounded-2xl border border-border/60 px-10 py-5 text-center text-sm shadow-lifted [animation-delay:200ms]">
-        Have an account?{" "}
+        {t("auth.haveAccount")}{" "}
         <Link href="/login" className="font-semibold text-primary">
-          Log in
+          {t("auth.login")}
         </Link>
       </div>
     </div>

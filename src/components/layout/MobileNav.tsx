@@ -5,28 +5,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UnreadDot } from "@/components/shared/UnreadDot";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { useTranslation } from "@/i18n/useTranslation";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
 
   const { unreadMessages, unreadNotifications } = useUnreadCounts();
 
   const navItems = [
-    { href: "/feed", label: "Home", icon: Home },
-    { href: "/explore", label: "Explore", icon: Compass },
+    { href: "/feed", label: t("nav.home"), icon: Home },
+    { href: "/explore", label: t("nav.explore"), icon: Compass },
     {
       href: "/messages",
-      label: "Messages",
+      label: t("nav.messages"),
       icon: MessageCircle,
       hasDot: unreadMessages > 0,
     },
     {
       href: "/notifications",
-      label: "Notifications",
+      label: t("nav.notifications"),
       icon: Heart,
       badge: unreadNotifications,
     },
@@ -40,7 +42,7 @@ export function MobileNav() {
 
       <Link
         href="/create"
-        aria-label="Create post"
+        aria-label={t("nav.create")}
         className="flex h-full flex-1 items-center justify-center transition-transform duration-150 ease-smooth active:scale-90"
       >
         <PlusSquare className="size-6" />
