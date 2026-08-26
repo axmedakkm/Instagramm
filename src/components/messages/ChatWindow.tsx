@@ -39,7 +39,7 @@ import { conversationsApi, messagesApi, storiesApi, usersApi } from "@/services/
 import { queryKeys } from "@/services/queryKeys";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useConversationPrefsStore } from "@/store/useConversationPrefsStore";
-import type { Message } from "@/types";
+import type { Conversation, Message } from "@/types";
 
 /** Falls back to short-polling whenever the realtime socket is down. */
 const POLL_INTERVAL_MS = 3000;
@@ -89,6 +89,9 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
   // currently hidden" check.
   const hiddenAt = useConversationPrefsStore(
     (state) => state.hiddenAt[conversationId],
+  );
+  const markConversationRead = useConversationPrefsStore(
+    (state) => state.markRead,
   );
   const messages = useMemo(() => {
     const items = messagesPage?.items ?? [];
@@ -141,24 +144,54 @@ export function ChatWindow({ conversationId }: { conversationId: string }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // The local "seen up to here" watermark the unread dot reads from. Bumped
+  // on open and again whenever a message lands while you're sitting in the
+  // chat, so the dot can't come back for something you just watched arrive.
+  const lastMessageAt = messages.at(-1)?.createdAt;
+  useEffect(() => {
+    markConversationRead(conversationId);
+  }, [conversationId, lastMessageAt, markConversationRead]);
+
   // No bulk "mark conversation read" endpoint — send a per-message read
-  // receipt for every incoming message we haven't already marked.
+  // receipt for every incoming message we haven't already marked. Once they
+  // all land, the inbox row's unread dot is cleared straight in the cache and
+  // the list refetched: without that, the dot would linger for up to a poll
+  // interval on a chat you're currently looking at.
   useEffect(() => {
     if (!currentUser) return;
-    messages
-      .filter(
-        (message) =>
-          message.sender.id !== currentUser.id &&
-          !message.isRead &&
-          !markedReadRef.current.has(message.id),
-      )
-      .forEach((message) => {
-        markedReadRef.current.add(message.id);
+    const unread = messages.filter(
+      (message) =>
+        message.sender.id !== currentUser.id &&
+        !message.isRead &&
+        !markedReadRef.current.has(message.id),
+    );
+    if (unread.length === 0) return;
+
+    unread.forEach((message) => markedReadRef.current.add(message.id));
+
+    void Promise.all(
+      unread.map((message) =>
         messagesApi.markRead(message.id).catch(() => {
+          // Leave it unmarked so a later pass retries it.
           markedReadRef.current.delete(message.id);
-        });
-      });
-  }, [messages, currentUser]);
+        }),
+      ),
+    ).then(() => {
+      queryClient.setQueryData(
+        queryKeys.conversations.list,
+        (old: { items: Conversation[] } | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            items: old.items.map((item) =>
+              item.id === conversationId ? { ...item, unreadCount: 0 } : item,
+            ),
+          };
+        },
+      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.list });
+    });
+  }, [messages, currentUser, conversationId, queryClient]);
 
   useEffect(() => {
     if (!socket) return;

@@ -1,8 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { hasUnread } from "@/lib/conversation";
 import { conversationsApi, notificationsApi } from "@/services/api";
 import { queryKeys } from "@/services/queryKeys";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useConversationPrefsStore } from "@/store/useConversationPrefsStore";
 
 /**
  * The two numbers the nav badges need. Both the sidebar and the mobile nav
@@ -13,6 +16,9 @@ import { queryKeys } from "@/services/queryKeys";
  * polling takes over, and the badges follow along from the shared cache.
  */
 export function useUnreadCounts() {
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const readAt = useConversationPrefsStore((state) => state.readAt);
+
   const { data: conversations } = useQuery({
     queryKey: queryKeys.conversations.list,
     queryFn: () => conversationsApi.list(),
@@ -28,10 +34,15 @@ export function useUnreadCounts() {
   });
 
   // One conversation can hold several unread messages, so this is a sum of
-  // the per-conversation counts, not a count of conversations.
+  // the per-conversation counts, not a count of conversations. Chats you've
+  // already read are skipped on the same rule the inbox dot uses, so the nav
+  // icon and the row it points at never disagree.
   const unreadMessages =
     conversations?.items.reduce(
-      (total, conversation) => total + conversation.unreadCount,
+      (total, conversation) =>
+        hasUnread(conversation, readAt[conversation.id], currentUserId)
+          ? total + conversation.unreadCount
+          : total,
       0,
     ) ?? 0;
 
