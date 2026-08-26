@@ -8,12 +8,10 @@ import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useUIStore } from "@/store/useUIStore";
 
 export function MobileNav() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
-  const openCreatePost = useUIStore((state) => state.openCreatePost);
 
   const { unreadMessages, unreadNotifications } = useUnreadCounts();
 
@@ -40,13 +38,13 @@ export function MobileNav() {
         <NavLink key={item.href} item={item} isActive={pathname === item.href} />
       ))}
 
-      <button
-        type="button"
-        onClick={openCreatePost}
+      <Link
+        href="/create"
+        aria-label="Create post"
         className="flex h-full flex-1 items-center justify-center transition-transform duration-150 ease-smooth active:scale-90"
       >
         <PlusSquare className="size-6" />
-      </button>
+      </Link>
 
       {navItems.slice(2).map((item) => (
         <NavLink key={item.href} item={item} isActive={pathname === item.href} />

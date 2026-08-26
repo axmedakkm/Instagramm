@@ -87,6 +87,8 @@ export interface Post {
   mediaType: MediaType;
   mediaUrls: string[];
   location: string;
+  /** Optional music sticker attached to the post, or null. */
+  music: MusicTrack | null;
   likesCount: number;
   commentsCount: number;
   isLikedByMe: boolean;

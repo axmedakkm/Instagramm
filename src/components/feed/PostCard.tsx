@@ -9,6 +9,7 @@ import {
   Heart,
   MessageCircle,
   MoreHorizontal,
+  Music,
   Send,
   Trash2,
 } from "lucide-react";
@@ -328,6 +329,15 @@ export function PostCard({ post }: { post: Post }) {
           {post.likesCount.toLocaleString()}{" "}
           {post.likesCount === 1 ? "like" : "likes"}
         </p>
+
+        {post.music && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Music className="size-3.5 shrink-0" />
+            <span className="truncate">
+              {post.music.title} · {post.music.artist}
+            </span>
+          </p>
+        )}
 
         {post.caption && (
           <p className="text-sm leading-relaxed">
